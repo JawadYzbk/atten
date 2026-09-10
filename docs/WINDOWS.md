@@ -10,7 +10,7 @@ shipped with the app instead of being assumed to exist on the user's machine.
 Requirements on a Windows 11 x64 machine:
 
 - Visual Studio 2022 with Windows App SDK tooling
-- .NET 10 SDK
+- .NET 8 SDK
 - Python 3.12
 - `uv`
 - PyInstaller

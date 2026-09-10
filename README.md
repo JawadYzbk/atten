@@ -134,7 +134,7 @@ backend elsewhere, set `ATTEN_BACKEND_ROOT=/path/to/offline-tts`.
 ### Windows app
 
 You will need Windows 10 1809+ or Windows 11 x64, Visual Studio 2022 with
-Windows App SDK tooling, .NET 10 SDK, Python 3.12, `uv`, and PyInstaller.
+Windows App SDK tooling, .NET 8 SDK, Python 3.12, `uv`, and PyInstaller.
 
 ```powershell
 uv sync --frozen --group release --no-editable

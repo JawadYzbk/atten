@@ -39,15 +39,27 @@ try {
     }
     uv run --frozen python (Join-Path $Root "scripts/prepare-model") @prepareArgs
 
-    # Visual Studio's MSBuild can lag behind the SDK selected by CI (notably for
-    # net10.0). Publishing through dotnet guarantees this project is built by
-    # the installed .NET SDK instead of whichever MSBuild happens to be first
-    # on PATH.
-    dotnet publish $AppProject `
-        -c $Configuration `
-        -r $Runtime `
-        -o $Publish `
-        /p:SelfContained=true
+    # WinUI's PRI generation tasks are supplied by the Visual Studio Windows
+    # App SDK workload. Prefer its MSBuild when available; the fallback keeps
+    # the script usable on a dotnet-only development machine.
+    $publishDir = "$Publish\"
+    if (Get-Command msbuild -ErrorAction SilentlyContinue) {
+        msbuild $AppProject `
+            /restore `
+            /t:Publish `
+            /p:Configuration=$Configuration `
+            /p:Platform=x64 `
+            /p:RuntimeIdentifier=$Runtime `
+            /p:SelfContained=true `
+            /p:PublishDir=$publishDir
+    }
+    else {
+        dotnet publish $AppProject `
+            -c $Configuration `
+            -r $Runtime `
+            -o $Publish `
+            /p:SelfContained=true
+    }
 
     New-Item -ItemType Directory -Force (Join-Path $Publish "Backend") | Out-Null
     Copy-Item -Recurse (Join-Path $Dist "atten-backend") (Join-Path $Publish "Backend/atten-backend")
