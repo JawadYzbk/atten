@@ -37,7 +37,6 @@ UninstallDisplayName=Atten
 UninstallDisplayIcon={app}\{#MyAppExeName}
 WizardStyle=modern
 DisableWelcomePage=no
-DiskSpaceRequired=4194304
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
