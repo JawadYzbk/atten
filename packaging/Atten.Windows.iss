@@ -64,19 +64,19 @@ type
   TMemoryStatusEx = record
     dwLength: DWORD;
     dwMemoryLoad: DWORD;
-    ullTotalPhys: UInt64;
-    ullAvailPhys: UInt64;
-    ullTotalPageFile: UInt64;
-    ullAvailPageFile: UInt64;
-    ullTotalVirtual: UInt64;
-    ullAvailVirtual: UInt64;
-    ullAvailExtendedVirtual: UInt64;
+    ullTotalPhys: Int64;
+    ullAvailPhys: Int64;
+    ullTotalPageFile: Int64;
+    ullAvailPageFile: Int64;
+    ullTotalVirtual: Int64;
+    ullAvailVirtual: Int64;
+    ullAvailExtendedVirtual: Int64;
   end;
 
 function GlobalMemoryStatusEx(var MemoryStatus: TMemoryStatusEx): Boolean;
   external 'GlobalMemoryStatusEx@kernel32.dll stdcall';
 
-function BytesToGiB(const Bytes: UInt64): Integer;
+function BytesToGiB(const Bytes: Int64): Integer;
 begin
   Result := Bytes div 1073741824;
 end;
@@ -114,7 +114,7 @@ begin
 
   MemoryStatus.dwLength := SizeOf(MemoryStatus);
   if GlobalMemoryStatusEx(MemoryStatus) and
-     (MemoryStatus.ullTotalPhys < UInt64(MinimumInstalledRamGiB) * 1073741824) then begin
+     (MemoryStatus.ullTotalPhys < Int64(MinimumInstalledRamGiB) * 1073741824) then begin
     MsgBox(
       'Atten requires at least ' + IntToStr(MinimumInstalledRamGiB) +
       ' GB of installed RAM. This computer reports ' +
@@ -149,7 +149,7 @@ begin
 
   MemoryStatus.dwLength := SizeOf(MemoryStatus);
   if GlobalMemoryStatusEx(MemoryStatus) and
-     (MemoryStatus.ullAvailPhys < UInt64(RecommendedAvailableRamGiB) * 1073741824) then begin
+     (MemoryStatus.ullAvailPhys < Int64(RecommendedAvailableRamGiB) * 1073741824) then begin
     Result := MsgBox(
       'Atten works best with at least ' + IntToStr(RecommendedAvailableRamGiB) +
       ' GB of RAM currently available for model loading. Close memory-intensive applications before generating speech. Continue anyway?',
