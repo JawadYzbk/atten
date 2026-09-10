@@ -83,23 +83,18 @@ end;
 
 procedure InitializeWizard;
 var
-  Requirements: TNewStaticText;
+  RequirementsPage: TOutputMsgWizardPage;
 begin
-  Requirements := TNewStaticText.Create(WizardForm.WelcomePage);
-  Requirements.Parent := WizardForm.WelcomePage;
-  Requirements.Left := ScaleX(20);
-  Requirements.Top := ScaleY(155);
-  Requirements.Width := WizardForm.WelcomePage.SurfaceWidth - ScaleX(40);
-  Requirements.Height := ScaleY(118);
-  Requirements.AutoSize := False;
-  Requirements.WordWrap := True;
-  Requirements.Caption :=
+  RequirementsPage := CreateOutputMsgPage(
+    wpWelcome,
+    'System requirements',
+    'Before installing Atten',
     'System requirements' + #13#10 +
     '- 64-bit Windows 10 version 1809 or newer, or Windows 11' + #13#10 +
     '- 8 GB RAM (4 GB available is recommended while generating speech)' + #13#10 +
     '- 4 GB free disk space for the app, offline model, and voice files' + #13#10 +
     '- An x64-compatible processor' + #13#10 + #13#10 +
-    'Atten includes its speech engine, model, Python runtime, .NET runtime, and Windows App SDK. Internet access is not needed after this installer has been downloaded.';
+    'Atten includes its speech engine, model, Python runtime, .NET runtime, and Windows App SDK. Internet access is not needed after this installer has been downloaded.');
 end;
 
 function InitializeSetup(): Boolean;
