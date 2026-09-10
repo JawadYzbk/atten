@@ -2,6 +2,8 @@
 
 The Windows app lives in `apps/windows/Atten.Windows` and is a native WinUI 3
 frontend that talks to the same Python backend JSON protocol as the macOS app.
+Release builds use self-contained WinUI deployment, so the Windows App SDK is
+shipped with the app instead of being assumed to exist on the user's machine.
 
 ## Development
 
@@ -12,6 +14,7 @@ Requirements on a Windows 11 x64 machine:
 - Python 3.12
 - `uv`
 - PyInstaller
+- Inno Setup 6 (only to compile the user-facing installer)
 
 From the repository root:
 
@@ -52,10 +55,16 @@ wheel:
 scripts/build-windows.ps1 -BackendFlavor cuda
 ```
 
-The script publishes the WinUI app, builds the Windows PyInstaller backend,
-stages the Kokoro 82M model, copies the shared voice catalog, and produces
-`.build/windows-artifacts/Atten-Windows-x64.zip` for CPU builds or
-`.build/windows-artifacts/Atten-Windows-x64-CUDA.zip` for CUDA builds.
+The script publishes the self-contained WinUI app, builds the Windows
+PyInstaller backend, stages the Kokoro 82M model, runs the packaged backend's
+offline capability check, starts the published app in a no-window validation
+mode, and creates an Inno Setup installer. It produces
+`.build/windows-artifacts/Atten-Windows-x64-Setup.exe` for CPU builds or
+`.build/windows-artifacts/Atten-Windows-x64-CUDA-Setup.exe` for CUDA builds.
+The installer presents the end-user requirements before installation, blocks
+unsupported 32-bit systems and computers with less than 8 GB RAM, checks for
+4 GB free install space, and warns if less than 4 GB RAM is currently free for
+model loading.
 
 ## Current status
 
@@ -72,6 +81,5 @@ Still required before a production Windows release:
 
 - Full parity polish for Playground, Voices, Projects, Exports, and Settings
 - File/folder picker wiring
-- MSIX or signed installer generation
-- Windows CI and CUDA hardware smoke tests
+- CUDA hardware smoke tests
 - App icon assets and release signing

@@ -1,10 +1,13 @@
 # Atten deployment
 
-Atten is distributed as one fully offline, Apple Silicon DMG through GitHub
-Releases. End users do not install Python, Kokoro, eSpeak NG, Homebrew, `uv`, or
-model files. The stable website download target is:
+Atten is distributed through GitHub Releases as a fully offline Apple Silicon
+DMG and a fully offline Windows x64 installer. End users do not install Python,
+Kokoro, eSpeak NG, Homebrew, `uv`, model files, .NET, or the Windows App SDK.
+The stable download targets are:
 
 <https://github.com/jashdubal/atten/releases/latest/download/Atten-macOS-arm64.dmg>
+
+<https://github.com/jashdubal/atten/releases/latest/download/Atten-Windows-x64-Setup.exe>
 
 ## Release architecture
 
@@ -45,14 +48,14 @@ Ensure `macOS/Info.plist` has the intended version and the worktree is clean:
 ```bash
 swift test
 python3.12 -m unittest discover -s tests -p 'test_*.py' -v
-scripts/build-release --version 0.2.0
+scripts/build-release --version 0.2.1
 ```
 
 To reuse an already downloaded pinned model snapshot:
 
 ```bash
 ATTEN_MODEL_SOURCE="$HOME/.cache/huggingface/hub/models--hexgrad--Kokoro-82M/snapshots/f3ff3571791e39611d31c381e3a41a3af07b4987" \
-  scripts/build-release --version 0.2.0
+  scripts/build-release --version 0.2.1
 ```
 
 Set `RUN_SYNTHESIS_SMOKE=1` to generate MP3 and WAV samples for every supported
@@ -67,6 +70,13 @@ Artifacts are written to `.build/release-artifacts/`:
 - `Atten-corresponding-source.tar.gz`
 - `Atten-sbom.spdx.json`
 
+The Windows job writes `.build/windows-artifacts/Atten-Windows-x64-Setup.exe`.
+It embeds the self-contained WinUI runtime, PyInstaller speech backend, Kokoro
+model, voice files, and notices. Its installer displays system requirements
+before installation, requires 64-bit Windows 10 version 1809+ or Windows 11,
+requires 8 GB installed RAM and 4 GB free disk, and warns when less than 4 GB
+RAM is currently available for the model.
+
 The build fails for a missing helper, model, voice, license, non-arm64 Mach-O,
 non-portable dynamic-library path, embedded development path, invalid code
 signature, or a DMG at or above GitHub's 2 GiB file limit.
@@ -78,8 +88,8 @@ signature, or a DMG at or above GitHub's 2 GiB file limit.
 2. Create and push a matching annotated tag:
 
    ```bash
-   git tag -a v0.2.0 -m "Atten 0.2.0"
-   git push origin v0.2.0
+   git tag -a v0.2.1 -m "Atten 0.2.1"
+   git push origin v0.2.1
    ```
 
 3. `.github/workflows/release.yml` checks that the tag and plist versions
@@ -87,7 +97,9 @@ signature, or a DMG at or above GitHub's 2 GiB file limit.
    offline synthesis smoke test, creates GitHub provenance attestations, and
    publishes all four assets.
 4. Download the published assets, verify the checksum, mount the DMG, drag the
-   app to Applications, and complete the manual release checklist below.
+   app to Applications, and complete the manual release checklist below. On a
+   clean supported Windows VM, run the Windows installer and make one offline
+   CPU generation before publishing.
 
 Asset names must remain stable. GitHub’s `/releases/latest/download/...` URL
 depends on `Atten-macOS-arm64.dmg` being unchanged across releases.

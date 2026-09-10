@@ -85,6 +85,9 @@ jobs:
         with:
           dotnet-version: "10.0.x"
       - uses: microsoft/setup-msbuild@v2
+      - name: Install the Windows installer compiler
+        shell: pwsh
+        run: choco install innosetup --no-progress --limit-output -y
 
       - name: Validate release version
         shell: pwsh
@@ -101,15 +104,17 @@ jobs:
       - name: Run backend tests
         run: uv run python -m unittest discover -s tests -p "test_*.py" -v
 
-      - name: Build Windows preview package
+      - name: Build Windows installer
         shell: pwsh
-        run: scripts/build-windows.ps1 -BackendFlavor cpu
+        run: scripts/build-windows.ps1 -BackendFlavor cpu -Version "${env:GITHUB_REF_NAME}".TrimStart('v')
 
       - name: Upload Windows release artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows-release-artifacts
-          path: .build/windows-artifacts/Atten-Windows-x64.zip
+          path: |
+            .build/windows-artifacts/Atten-Windows-x64-Setup.exe
+            .build/windows-artifacts/SHA256SUMS-Windows.txt
 
   publish:
     runs-on: ubuntu-latest
@@ -128,7 +133,8 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" \
             release-artifacts/Atten-macOS-arm64.dmg \
-            release-artifacts/Atten-Windows-x64.zip \
+            release-artifacts/Atten-Windows-x64-Setup.exe \
+            release-artifacts/SHA256SUMS-Windows.txt \
             release-artifacts/Atten-corresponding-source.tar.gz \
             release-artifacts/Atten-sbom.spdx.json \
             release-artifacts/SHA256SUMS.txt \

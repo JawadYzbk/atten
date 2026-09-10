@@ -4,7 +4,8 @@ param(
     [string] $Configuration = "Release",
     [string] $Runtime = "win-x64",
     [string] $ModelSource = "",
-    [string] $Output = ".build/windows-artifacts"
+    [string] $Output = ".build/windows-artifacts",
+    [string] $Version = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -17,6 +18,7 @@ $AppProject = Join-Path $Root "apps/windows/Atten.Windows/Atten.Windows.csproj"
 $Spec = Join-Path $Root "packaging/atten-backend-windows-$BackendFlavor.spec"
 $Publish = Join-Path $BuildRoot "publish"
 $ArtifactRoot = Join-Path $Root $Output
+$InstallerScript = Join-Path $Root "packaging/Atten.Windows.iss"
 
 Remove-Item -Recurse -Force $BuildRoot, $ArtifactRoot -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $BuildRoot, $ArtifactRoot | Out-Null
@@ -60,12 +62,75 @@ try {
     Copy-Item -Recurse (Join-Path $Dist "atten-backend") (Join-Path $Publish "Backend/atten-backend")
     New-Item -ItemType Directory -Force (Join-Path $Publish "Models") | Out-Null
     Copy-Item -Recurse $ModelDestination (Join-Path $Publish "Models/Kokoro-82M")
-    Copy-Item -Recurse (Join-Path $Root "resources") (Join-Path $Publish "resources")
+    Copy-Item (Join-Path $Root "resources/voices.json") (Join-Path $Publish "resources/voices.json") -Force
 
-    $AssetName = if ($BackendFlavor -eq "cuda") { "Atten-Windows-x64-CUDA.zip" } else { "Atten-Windows-x64.zip" }
-    $Zip = Join-Path $ArtifactRoot $AssetName
-    Compress-Archive -Path (Join-Path $Publish "*") -DestinationPath $Zip -Force
-    Write-Host "Built $Zip"
+    $Licenses = Join-Path $Publish "Licenses"
+    New-Item -ItemType Directory -Force $Licenses | Out-Null
+    Copy-Item (Join-Path $Root "LICENSE") (Join-Path $Licenses "GPL-3.0-or-later.txt")
+    Copy-Item (Join-Path $Root "legal/THIRD_PARTY_NOTICES.md") $Licenses
+    Copy-Item (Join-Path $Root "legal/MODEL_ATTRIBUTION.md") $Licenses
+    Copy-Item (Join-Path $Root "legal/CORRESPONDING_SOURCE.md") $Licenses
+
+    # Exercise the real PyInstaller executable with the staged model before it
+    # is handed to the installer. This catches missing DLLs and model files on
+    # the Windows build machine rather than after a user installs the app.
+    $PreviousModelRoot = $env:ATTEN_MODEL_ROOT
+    $PreviousOffline = $env:HF_HUB_OFFLINE
+    try {
+        $env:ATTEN_MODEL_ROOT = Join-Path $Publish "Models/Kokoro-82M"
+        $env:HF_HUB_OFFLINE = "1"
+        & (Join-Path $Publish "Backend/atten-backend/atten-backend.exe") --backend-info --device cpu --json
+        if ($LASTEXITCODE -ne 0) {
+            throw "The packaged Windows backend failed its startup check (exit code $LASTEXITCODE)."
+        }
+    }
+    finally {
+        $env:ATTEN_MODEL_ROOT = $PreviousModelRoot
+        $env:HF_HUB_OFFLINE = $PreviousOffline
+    }
+
+    # Start the published WinUI executable without showing its main window.
+    # This validates the self-contained Windows App SDK deployment as well as
+    # the app's own resource and backend discovery paths.
+    $ValidationError = Join-Path $Publish "install-validation-error.txt"
+    Remove-Item $ValidationError -Force -ErrorAction SilentlyContinue
+    & (Join-Path $Publish "Atten.Windows.exe") --validate-install
+    if ($LASTEXITCODE -ne 0) {
+        $ValidationDetail = if (Test-Path $ValidationError) { Get-Content $ValidationError -Raw } else { "No diagnostic file was written." }
+        throw "The published Windows app failed its startup check: $ValidationDetail"
+    }
+
+    if ([string]::IsNullOrWhiteSpace($Version)) {
+        [xml] $ProjectXml = Get-Content $AppProject
+        $Version = $ProjectXml.Project.PropertyGroup.Version | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1
+    }
+    if ([string]::IsNullOrWhiteSpace($Version)) {
+        throw "Pass -Version or define a <Version> in $AppProject before building an installer."
+    }
+
+    $IsccCandidates = @(
+        (Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6/ISCC.exe"),
+        (Join-Path $env:ProgramFiles "Inno Setup 6/ISCC.exe")
+    )
+    $Iscc = $IsccCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if ($null -eq $Iscc) {
+        throw "Inno Setup 6 was not found. Install it from https://jrsoftware.org/isinfo.php before building a Windows installer."
+    }
+
+    $AssetBaseName = if ($BackendFlavor -eq "cuda") { "Atten-Windows-x64-CUDA-Setup" } else { "Atten-Windows-x64-Setup" }
+    & $Iscc "/DSourceRoot=$Publish" "/DMyAppVersion=$Version" "/DMyOutputBaseName=$AssetBaseName" "/O$ArtifactRoot" $InstallerScript
+    if ($LASTEXITCODE -ne 0) {
+        throw "Inno Setup failed to build the Windows installer (exit code $LASTEXITCODE)."
+    }
+
+    $AssetName = "$AssetBaseName.exe"
+    $Installer = Join-Path $ArtifactRoot $AssetName
+    if (-not (Test-Path $Installer)) {
+        throw "Inno Setup did not produce the expected installer: $Installer"
+    }
+    $Checksum = (Get-FileHash $Installer -Algorithm SHA256).Hash.ToLowerInvariant()
+    Set-Content -Path (Join-Path $ArtifactRoot "SHA256SUMS-Windows.txt") -Value "$Checksum *$AssetName" -NoNewline
+    Write-Host "Built $Installer"
 }
 finally {
     Pop-Location

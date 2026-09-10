@@ -6,10 +6,10 @@ import { useEffect, useState, type MouseEvent, type ReactElement, type SVGProps 
 import { Apple, ArrowDown, ArrowRight, Terminal, Windows } from "./icons";
 
 export const MAC_DOWNLOAD_URL = "https://github.com/jashdubal/atten/releases/latest/download/Atten-macOS-arm64.dmg";
-export const WINDOWS_DOWNLOAD_URL = "https://github.com/jashdubal/atten/releases/latest/download/Atten-Windows-x64.zip";
+export const WINDOWS_DOWNLOAD_URL = "https://github.com/jashdubal/atten/releases/latest/download/Atten-Windows-x64-Setup.exe";
 
 const RELEASES_API_URL = "https://api.github.com/repos/jashdubal/atten/releases?per_page=100";
-const DOWNLOAD_ASSETS = ["Atten-macOS-arm64.dmg", "Atten-Windows-x64.zip"];
+const DOWNLOAD_ASSETS = ["Atten-macOS-arm64.dmg", "Atten-Windows-x64-Setup.exe"];
 
 type IconComponent = (props: SVGProps<SVGSVGElement>) => ReactElement;
 const MotionLink = motion.create(Link);

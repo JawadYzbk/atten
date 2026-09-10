@@ -18,3 +18,12 @@ ID signing and notarization without changing the stable download URL.
 
 Source, license notices, the SPDX dependency manifest, and GitHub provenance
 attestations are published beside the DMG.
+
+## Windows installation
+
+Download `Atten-Windows-x64-Setup.exe` and run it. The guided installer checks
+that the computer has 64-bit Windows 10 version 1809 or newer (or Windows 11),
+8 GB RAM, and 4 GB free disk space before installation. It includes the local
+speech engine, Kokoro model, Python runtime, .NET runtime, and Windows App SDK;
+no separate dependency installation or internet connection is needed after the
+installer is downloaded. The public Windows build uses CPU inference.

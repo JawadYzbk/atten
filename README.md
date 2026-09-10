@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://github.com/jashdubal/atten/releases/latest/download/Atten-macOS-arm64.dmg"><strong>Download for Mac</strong></a>
   ·
-  <a href="https://github.com/jashdubal/atten/releases/latest/download/Atten-Windows-x64.zip"><strong>Download for Windows</strong></a>
+  <a href="https://github.com/jashdubal/atten/releases/latest/download/Atten-Windows-x64-Setup.exe"><strong>Download for Windows</strong></a>
   ·
   <a href="https://jashdubal.github.io/atten/">Website</a>
   ·
@@ -21,7 +21,7 @@
 
 <p align="center">
   <a href="https://github.com/jashdubal/atten/releases/latest/download/Atten-macOS-arm64.dmg"><img src="https://img.shields.io/github/downloads/jashdubal/atten/Atten-macOS-arm64.dmg?style=flat-square&amp;label=DMG%20downloads&amp;labelColor=0a101b&amp;color=197f99" alt="Total Atten DMG downloads"></a>
-  <a href="https://github.com/jashdubal/atten/releases/latest/download/Atten-Windows-x64.zip"><img src="https://img.shields.io/github/downloads/jashdubal/atten/Atten-Windows-x64.zip?style=flat-square&amp;label=Windows%20downloads&amp;labelColor=0a101b&amp;color=197f99" alt="Total Atten Windows downloads"></a>
+  <a href="https://github.com/jashdubal/atten/releases/latest/download/Atten-Windows-x64-Setup.exe"><img src="https://img.shields.io/github/downloads/jashdubal/atten/Atten-Windows-x64-Setup.exe?style=flat-square&amp;label=Windows%20downloads&amp;labelColor=0a101b&amp;color=197f99" alt="Total Atten Windows downloads"></a>
 </p>
 
 <p align="center">
@@ -61,16 +61,17 @@ alternative Privacy & Security flow and download verification.
 
 ### Windows
 
-1. **[Download the Windows x64 preview](https://github.com/jashdubal/atten/releases/latest/download/Atten-Windows-x64.zip).**
-2. Extract the ZIP.
-3. Run **Atten.Windows.exe**.
+1. **[Download the Windows x64 installer](https://github.com/jashdubal/atten/releases/latest/download/Atten-Windows-x64-Setup.exe).**
+2. Run the installer and review its system-requirements screen.
+3. Choose an install location, then launch **Atten** from the Finish screen or Start menu.
 
-The Windows package uses CPU execution and works on any supported x64 Windows
-10/11 machine. CUDA-aware backend support is available in the codebase and can
-be packaged with `scripts/build-windows.ps1 -BackendFlavor cuda`, but public
-release automation currently publishes the CPU preview package. The Windows app
-is a preview while installer signing, MSIX packaging, and UI parity work
-continue.
+Atten requires 64-bit Windows 10 version 1809 or newer (or Windows 11), 8 GB
+RAM, and 4 GB of free disk space. The installer checks these before copying
+files and warns when less than 4 GB RAM is currently free for model loading.
+It includes the CPU speech engine, Kokoro model, Python runtime, .NET runtime,
+and Windows App SDK: there is no separate runtime, Python, model download, or
+internet requirement after download. CUDA-aware backend support remains
+available for maintainers through `scripts/build-windows.ps1 -BackendFlavor cuda`.
 
 ## Command line
 
@@ -140,7 +141,8 @@ uv sync --frozen --group release --no-editable
 dotnet build apps/windows/Atten.Windows/Atten.Windows.csproj -c Debug -r win-x64
 ```
 
-Build a Windows preview package on Windows:
+Build a Windows installer on Windows (Inno Setup 6 is required for the final
+installer step):
 
 ```powershell
 scripts/build-windows.ps1 -BackendFlavor cpu
