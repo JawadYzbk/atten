@@ -6,7 +6,7 @@ import { ArrowRight, GitHub } from "@/components/icons";
 import { NeuralVeil } from "@/components/neural-veil";
 
 export const metadata: Metadata = {
-  title: "Atten — Free offline text-to-speech for Mac and Windows",
+  title: "Atten | Free, offline text-to-speech app for Mac and Windows",
   description: "Atten is free, open-source text-to-speech that runs locally on your computer. No cloud, account, subscription, or API key.",
   alternates: { canonical: "/" },
   openGraph: {
