@@ -125,7 +125,7 @@ end;
 function NextButtonClick(CurPageID: Integer): Boolean;
 var
   MemoryStatus: TMemoryStatusEx;
-  FreeSpace, TotalSpace: Int64;
+  FreeSpace, TotalSpace: Cardinal;
 begin
   Result := True;
   if CurPageID <> wpSelectDir then
