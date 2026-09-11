@@ -9,7 +9,14 @@ export const MAC_DOWNLOAD_URL = "https://github.com/jashdubal/atten/releases/lat
 export const WINDOWS_DOWNLOAD_URL = "https://github.com/jashdubal/atten/releases/latest/download/Atten-Windows-x64-Setup.exe";
 
 const RELEASES_API_URL = "https://api.github.com/repos/jashdubal/atten/releases?per_page=100";
-const DOWNLOAD_ASSETS = ["Atten-macOS-arm64.dmg", "Atten-Windows-x64-Setup.exe"];
+// Keep former distribution names here permanently. GitHub records downloads per
+// release asset, so including renamed assets preserves the public cumulative
+// count when a distribution format changes (such as ZIP -> installer).
+const DOWNLOAD_ASSETS = [
+  "Atten-macOS-arm64.dmg",
+  "Atten-Windows-x64.zip",
+  "Atten-Windows-x64-Setup.exe",
+];
 
 type IconComponent = (props: SVGProps<SVGSVGElement>) => ReactElement;
 const MotionLink = motion.create(Link);

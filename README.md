@@ -20,8 +20,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/jashdubal/atten/releases/latest/download/Atten-macOS-arm64.dmg"><img src="https://img.shields.io/github/downloads/jashdubal/atten/Atten-macOS-arm64.dmg?style=flat-square&amp;label=DMG%20downloads&amp;labelColor=0a101b&amp;color=197f99" alt="Total Atten DMG downloads"></a>
-  <a href="https://github.com/jashdubal/atten/releases/latest/download/Atten-Windows-x64-Setup.exe"><img src="https://img.shields.io/github/downloads/jashdubal/atten/Atten-Windows-x64-Setup.exe?style=flat-square&amp;label=Windows%20downloads&amp;labelColor=0a101b&amp;color=197f99" alt="Total Atten Windows downloads"></a>
+  <a href="https://github.com/jashdubal/atten/releases"><img src="https://img.shields.io/github/downloads/jashdubal/atten/total?style=flat-square&amp;label=release%20downloads&amp;labelColor=0a101b&amp;color=197f99" alt="Total Atten release downloads"></a>
 </p>
 
 <p align="center">
