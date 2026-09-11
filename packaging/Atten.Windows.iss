@@ -26,9 +26,12 @@ DisableProgramGroupPage=yes
 LicenseFile={#SourceRoot}\Licenses\GPL-3.0-or-later.txt
 OutputBaseFilename={#MyOutputBaseName}
 OutputDir=.
-Compression=lzma2/ultra64
-SolidCompression=yes
-LZMANumBlockThreads=4
+; The packaged Python/Torch runtime is large. LZMA ultra compression exhausts
+; the address space of the standard Inno compiler on hosted Windows runners.
+; Deflate has a tiny memory footprint, does not expand already-compressed files,
+; and keeps the installer reproducible and buildable on the release runner.
+Compression=zip/9
+SolidCompression=no
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0.17763
