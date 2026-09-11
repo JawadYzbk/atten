@@ -109,10 +109,10 @@ export function DownloadButton({ compact = false }: { compact?: boolean }) {
   }
 
   return <span className="inline-flex flex-col items-center">
-    <span className="flex flex-col flex-wrap items-center justify-center gap-3 sm:flex-row">
-      <PlatformButton href={MAC_DOWNLOAD_URL} label="Download for Mac" icon={Apple} />
-      <PlatformButton href={WINDOWS_DOWNLOAD_URL} label="Download for Windows" icon={Windows} secondary />
-      <PlatformButton href="/cli" label="Use the CLI" icon={Terminal} secondary guide />
+    <span className="flex flex-col flex-wrap items-center justify-center gap-3 sm:flex-row 2xl:flex-nowrap">
+      <PlatformButton href={MAC_DOWNLOAD_URL} label="Download" icon={Apple} />
+      <PlatformButton href={WINDOWS_DOWNLOAD_URL} label="Download" icon={Windows} secondary />
+      <PlatformButton href="/cli" label="CLI" icon={Terminal} secondary guide />
     </span>
     {downloadCount !== null && <span className="mono mt-3 rounded-full border border-white/15 bg-[#0a101b]/80 px-3 py-1 text-[12px] font-semibold tracking-[.06em] text-[#dce8f5] shadow-[0_5px_18px_rgba(0,0,0,.22)] backdrop-blur-md" aria-live="polite">{downloadCount.toLocaleString()} {downloadCount === 1 ? "download" : "downloads"}</span>}
   </span>;
