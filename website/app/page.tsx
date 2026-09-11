@@ -61,7 +61,7 @@ export default function Home() {
 
           <h1 className="mt-4 font-semibold leading-[.9] tracking-[-.065em] text-white sm:mt-6">
             <span className="block whitespace-nowrap text-[clamp(1.75rem,4.3vw,3.75rem)]">Local text-to-speech.</span>
-            <span className="block whitespace-nowrap bg-gradient-to-r from-[#5ddbff] via-[#b7f2ff] to-[#9e70ff] bg-clip-text text-[clamp(1.75rem,4.3vw,3.75rem)] text-transparent">No cloud required.</span>
+            <span className="mt-2 block whitespace-nowrap bg-gradient-to-r from-[#5ddbff] via-[#b7f2ff] to-[#9e70ff] bg-clip-text text-[clamp(1.75rem,4.3vw,3.75rem)] text-transparent">No cloud required.</span>
           </h1>
           <p className="mt-5 max-w-lg text-base leading-7 text-[#b4c1d3] sm:mt-6 sm:text-lg sm:leading-8">Private, unlimited natural voice generation that works even when you&apos;re offline.</p>
 
