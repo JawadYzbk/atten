@@ -48,7 +48,6 @@ export default function Home() {
           <Link href="/faq" className="hidden rounded-lg px-3 py-2 text-xs text-[#8fa2ba] transition hover:bg-white/[.05] hover:text-white sm:block">FAQ</Link>
           <a href="https://github.com/jashdubal/atten" aria-label="View Atten on GitHub" className="rounded-lg p-2 text-[#8fa2ba] transition hover:bg-white/[.05] hover:text-white"><GitHub className="size-[17px]" /></a>
           <span className="mx-1 h-5 w-px bg-white/10" aria-hidden="true" />
-          <DownloadButton compact />
         </div>
       </nav>
 
