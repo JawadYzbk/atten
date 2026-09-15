@@ -68,7 +68,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<HfModelInfo> HfModels { get; } = [];
     public ObservableCollection<HfModelInfo> FilteredHfModels { get; } = [];
     public ObservableCollection<string> HfLanguages { get; } = ["All Languages", "Arabic", "English", "German", "Spanish", "French", "Italian", "Portuguese", "Russian", "Turkish", "Dutch", "Polish", "Japanese", "Chinese", "Hindi"];
-    public ObservableCollection<string> HfSortOptions { get; } = ["Most Downloads", "Most Stars", "Provider (A-Z)", "Model Name (A-Z)"];
+    public ObservableCollection<string> HfSortOptions { get; } = ["Most Downloads", "Most Stars", "Smallest Size", "Largest Size", "Provider (A-Z)", "Model Name (A-Z)"];
     public ObservableCollection<string> HfFilters { get; } = ["All Models", "Installed", "Available to Download"];
     public IReadOnlyList<AudioFormat> Formats { get; } = Enum.GetValues<AudioFormat>();
     public IReadOnlyList<DeviceMode> DeviceModes { get; } = Enum.GetValues<DeviceMode>();
@@ -502,6 +502,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         IEnumerable<HfModelInfo> sorted = SelectedHfSort switch
         {
             "Most Stars" => list.OrderByDescending(m => m.Likes),
+            "Smallest Size" => list.OrderBy(m => ParseSizeBytes(m.SizeText)),
+            "Largest Size" => list.OrderByDescending(m => ParseSizeBytes(m.SizeText)),
             "Provider (A-Z)" => list.OrderBy(m => string.IsNullOrEmpty(m.Author) ? m.Name : m.Author).ThenBy(m => m.Name),
             "Model Name (A-Z)" => list.OrderBy(m => m.Name),
             _ => list.OrderByDescending(m => m.Downloads)
@@ -512,6 +514,25 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             FilteredHfModels.Add(item);
         }
+    }
+
+    private static long ParseSizeBytes(string sizeText)
+    {
+        if (string.IsNullOrWhiteSpace(sizeText)) return 0L;
+        var trimmed = sizeText.Trim();
+        if (trimmed.StartsWith("~")) trimmed = trimmed[1..].Trim();
+
+        var parts = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 2 || !double.TryParse(parts[0], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var num))
+        {
+            return 0L;
+        }
+
+        var unit = parts[1].ToUpperInvariant();
+        if (unit.StartsWith("GB")) return (long)(num * 1024 * 1024 * 1024);
+        if (unit.StartsWith("MB")) return (long)(num * 1024 * 1024);
+        if (unit.StartsWith("KB")) return (long)(num * 1024);
+        return (long)num;
     }
 
     public async Task FetchHfModelsAsync()
