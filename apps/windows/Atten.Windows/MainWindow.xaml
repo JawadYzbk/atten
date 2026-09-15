@@ -81,9 +81,13 @@
                     <TextBlock Text="Use Studio controls for the first Windows scaffold. Voice preview and temporary generation will be added on this screen." TextWrapping="Wrap" />
                 </StackPanel>
 
-                <StackPanel x:Name="VoicesPanel" Grid.Row="1" Spacing="12" Visibility="Collapsed">
+                <Grid x:Name="VoicesPanel" Grid.Row="1" RowSpacing="12" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
                     <TextBlock Text="Voices" Style="{StaticResource TitleTextBlockStyle}" />
-                    <ListView ItemsSource="{Binding Voices}">
+                    <ListView Grid.Row="1" ItemsSource="{Binding Voices}" SelectionMode="None">
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="local:Voice">
                                 <StackPanel Padding="0,8">
@@ -93,11 +97,15 @@
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>
-                </StackPanel>
+                </Grid>
 
-                <StackPanel x:Name="ProjectsPanel" Grid.Row="1" Spacing="12" Visibility="Collapsed">
+                <Grid x:Name="ProjectsPanel" Grid.Row="1" RowSpacing="12" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
                     <TextBlock Text="Projects" Style="{StaticResource TitleTextBlockStyle}" />
-                    <ListView ItemsSource="{Binding Projects}">
+                    <ListView Grid.Row="1" ItemsSource="{Binding Projects}" SelectionMode="None">
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="local:ProjectRecord">
                                 <StackPanel Padding="0,8">
@@ -107,7 +115,7 @@
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>
-                </StackPanel>
+                </Grid>
 
                 <StackPanel x:Name="ExportsPanel" Grid.Row="1" Spacing="12" Visibility="Collapsed">
                     <TextBlock Text="Exports" Style="{StaticResource TitleTextBlockStyle}" />
