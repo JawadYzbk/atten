@@ -17,6 +17,7 @@
     <PublishSingleFile>false</PublishSingleFile>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>AttenIcon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -25,5 +26,7 @@
 
   <ItemGroup>
     <Content Include="..\..\..\resources\voices.json" Link="resources\voices.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="AttenIcon.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="AttenIcon.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -179,6 +179,8 @@ public sealed class HfModelInfo : INotifyPropertyChanged
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(InstallButtonVisibility)));
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(InstalledBadgeVisibility)));
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DownloadButtonEnabled)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanDelete)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DeleteButtonVisibility)));
             }
         }
     }
@@ -193,10 +195,14 @@ public sealed class HfModelInfo : INotifyPropertyChanged
                 isDownloading = value;
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsDownloading)));
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DownloadButtonEnabled)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanDelete)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DeleteButtonVisibility)));
             }
         }
     }
 
+    public bool CanDelete => isInstalled && !Id.Equals("hexgrad/Kokoro-82M", StringComparison.OrdinalIgnoreCase) && !isDownloading;
+    public Visibility DeleteButtonVisibility => CanDelete ? Visibility.Visible : Visibility.Collapsed;
     public bool DownloadButtonEnabled => !isDownloading && !isInstalled;
     public Visibility InstallButtonVisibility => isInstalled ? Visibility.Collapsed : Visibility.Visible;
     public Visibility InstalledBadgeVisibility => isInstalled ? Visibility.Visible : Visibility.Collapsed;
@@ -314,6 +320,8 @@ public sealed class InstalledModelItem : INotifyPropertyChanged
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(InstalledBadgeVisibility)));
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DownloadButtonVisibility)));
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CancelButtonVisibility)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanDelete)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DeleteButtonVisibility)));
             }
         }
     }
@@ -330,6 +338,8 @@ public sealed class InstalledModelItem : INotifyPropertyChanged
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DownloadingVisibility)));
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DownloadButtonVisibility)));
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CancelButtonVisibility)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanDelete)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DeleteButtonVisibility)));
             }
         }
     }
@@ -401,6 +411,8 @@ public sealed class InstalledModelItem : INotifyPropertyChanged
         }
     }
 
+    public bool CanDelete => !IsBundled && IsInstalled && !IsDownloading;
+    public Visibility DeleteButtonVisibility => CanDelete ? Visibility.Visible : Visibility.Collapsed;
     public Visibility InstalledBadgeVisibility => IsInstalled ? Visibility.Visible : Visibility.Collapsed;
     public Visibility DownloadButtonVisibility => (!IsInstalled && !IsDownloading) ? Visibility.Visible : Visibility.Collapsed;
     public Visibility DownloadingVisibility => IsDownloading ? Visibility.Visible : Visibility.Collapsed;

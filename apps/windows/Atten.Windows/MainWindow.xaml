@@ -228,7 +228,7 @@
                                                             <TextBlock Text="Installed" Foreground="{ThemeResource SystemAccentColor}" FontWeight="SemiBold" FontSize="12" />
                                                         </StackPanel>
 
-                                                        <!-- Action Buttons: Download, Pause, Cancel -->
+                                                        <!-- Action Buttons: Download, Pause, Cancel, Delete -->
                                                         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                                                             <!-- Download / Resume button if not installed -->
                                                             <Button Content="{x:Bind DownloadButtonText, Mode=OneWay}"
@@ -247,6 +247,17 @@
                                                                     Tag="{x:Bind Id}"
                                                                     Click="OnCancelEngineClicked"
                                                                     Visibility="{x:Bind CancelButtonVisibility, Mode=OneWay}" />
+
+                                                            <!-- Delete button if installed and not bundled -->
+                                                            <Button Tag="{x:Bind Id}"
+                                                                    Click="OnDeleteEngineClicked"
+                                                                    Visibility="{x:Bind DeleteButtonVisibility, Mode=OneWay}"
+                                                                    ToolTipService.ToolTip="Delete model and free disk space">
+                                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                                    <FontIcon FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Glyph="&#xE74D;" FontSize="12" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+                                                                    <TextBlock Text="Delete" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+                                                                </StackPanel>
+                                                            </Button>
                                                         </StackPanel>
                                                     </Grid>
 
@@ -375,10 +386,20 @@
 
                                                         <StackPanel Orientation="Horizontal"
                                                                     Spacing="4"
-                                                                    Visibility="{x:Bind InstalledBadgeVisibility, Mode=OneWay}">
+                                                                    Visibility="{x:Bind InstalledBadgeVisibility, Mode=OneWay}"
+                                                                    VerticalAlignment="Center">
                                                             <FontIcon FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Glyph="&#xE73E;" FontSize="12" Foreground="{ThemeResource SystemAccentColor}" />
                                                             <TextBlock Text="Installed" Foreground="{ThemeResource SystemAccentColor}" FontWeight="SemiBold" FontSize="12" />
                                                         </StackPanel>
+
+                                                        <!-- Delete button if installed and not Kokoro bundled -->
+                                                        <Button Tag="{x:Bind Id}"
+                                                                Click="OnDeleteHfModelClicked"
+                                                                Visibility="{x:Bind DeleteButtonVisibility, Mode=OneWay}"
+                                                                ToolTipService.ToolTip="Delete model and free disk space"
+                                                                Padding="8,4">
+                                                            <FontIcon FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Glyph="&#xE74D;" FontSize="12" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+                                                        </Button>
                                                     </StackPanel>
                                                 </Grid>
                                             </Border>

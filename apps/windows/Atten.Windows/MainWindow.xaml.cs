@@ -19,6 +19,31 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         Root.DataContext = model;
 
+        Title = "Atten";
+
+        var iconPath = Path.Combine(AppContext.BaseDirectory, "AttenIcon.ico");
+        if (File.Exists(iconPath))
+        {
+            AppWindow.SetIcon(iconPath);
+        }
+
+        if (Microsoft.UI.Windowing.AppWindowTitleBar.IsCustomizationSupported())
+        {
+            var titleBar = AppWindow.TitleBar;
+            titleBar.BackgroundColor = global::Windows.UI.Color.FromArgb(255, 15, 17, 23);
+            titleBar.ForegroundColor = global::Windows.UI.Color.FromArgb(255, 231, 238, 248);
+            titleBar.InactiveBackgroundColor = global::Windows.UI.Color.FromArgb(255, 12, 14, 18);
+            titleBar.InactiveForegroundColor = global::Windows.UI.Color.FromArgb(255, 120, 130, 145);
+            titleBar.ButtonBackgroundColor = global::Windows.UI.Color.FromArgb(0, 0, 0, 0);
+            titleBar.ButtonForegroundColor = global::Windows.UI.Color.FromArgb(255, 231, 238, 248);
+            titleBar.ButtonHoverBackgroundColor = global::Windows.UI.Color.FromArgb(255, 30, 36, 48);
+            titleBar.ButtonHoverForegroundColor = global::Windows.UI.Color.FromArgb(255, 255, 255, 255);
+            titleBar.ButtonPressedBackgroundColor = global::Windows.UI.Color.FromArgb(255, 45, 55, 75);
+            titleBar.ButtonPressedForegroundColor = global::Windows.UI.Color.FromArgb(255, 255, 255, 255);
+            titleBar.ButtonInactiveBackgroundColor = global::Windows.UI.Color.FromArgb(0, 0, 0, 0);
+            titleBar.ButtonInactiveForegroundColor = global::Windows.UI.Color.FromArgb(255, 120, 130, 145);
+        }
+
         player.PlaybackSession.PlaybackStateChanged += OnPlaybackStateChanged;
         player.MediaEnded += OnMediaEnded;
 
@@ -229,6 +254,22 @@ public sealed partial class MainWindow : Window
         if (sender is Button btn && btn.Tag is string modelId)
         {
             await model.DownloadHfModelAsync(modelId);
+        }
+    }
+
+    private async void OnDeleteEngineClicked(object sender, RoutedEventArgs args)
+    {
+        if (sender is Button btn && btn.Tag is string modelId && !string.IsNullOrWhiteSpace(modelId))
+        {
+            await model.DeleteModelAsync(modelId);
+        }
+    }
+
+    private async void OnDeleteHfModelClicked(object sender, RoutedEventArgs args)
+    {
+        if (sender is Button btn && btn.Tag is string modelId && !string.IsNullOrWhiteSpace(modelId))
+        {
+            await model.DeleteModelAsync(modelId);
         }
     }
 

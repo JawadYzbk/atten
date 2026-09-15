@@ -1510,6 +1510,96 @@ public sealed class MainViewModel : INotifyPropertyChanged
         UpdateFilteredHfModels();
     }
 
+    public async Task DeleteModelAsync(string modelId)
+    {
+        if (string.IsNullOrWhiteSpace(modelId)) return;
+
+        if (modelId.Equals("hexgrad/Kokoro-82M", StringComparison.OrdinalIgnoreCase))
+        {
+            Status = "Bundled default engine cannot be deleted.";
+            return;
+        }
+
+        if (IsDownloadingModel)
+        {
+            downloadCts?.Cancel();
+        }
+
+        pendingDownloadModelIds.Remove(modelId);
+        await SaveSettingsAsync();
+
+        var modelsDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Atten", "Models");
+
+        try
+        {
+            if (Directory.Exists(modelsDir))
+            {
+                if (modelId.Equals("coqui/XTTS-v2", StringComparison.OrdinalIgnoreCase) || modelId.Equals("XTTS-v2", StringComparison.OrdinalIgnoreCase))
+                {
+                    var xttsDir = Path.Combine(modelsDir, "XTTS-v2");
+                    if (Directory.Exists(xttsDir))
+                    {
+                        Directory.Delete(xttsDir, recursive: true);
+                    }
+                    IsXttsInstalled = false;
+                }
+                else
+                {
+                    var folderName = modelId.Replace("/", "--");
+                    var targetDir = Path.Combine(modelsDir, folderName);
+                    if (Directory.Exists(targetDir))
+                    {
+                        Directory.Delete(targetDir, recursive: true);
+                    }
+                    else
+                    {
+                        var directDir = Path.Combine(modelsDir, modelId);
+                        if (Directory.Exists(directDir))
+                        {
+                            Directory.Delete(directDir, recursive: true);
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Status = $"Failed to delete model {modelId}: {ex.Message}";
+        }
+
+        var engine = InstalledEngines.FirstOrDefault(e => e.Id.Equals(modelId, StringComparison.OrdinalIgnoreCase));
+        if (engine is not null)
+        {
+            engine.IsInstalled = false;
+            engine.IsDownloading = false;
+            engine.DownloadProgress = 0;
+            engine.DownloadStatus = "";
+            if (!engine.IsBundled && !engine.Id.Equals("coqui/XTTS-v2", StringComparison.OrdinalIgnoreCase))
+            {
+                InstalledEngines.Remove(engine);
+            }
+        }
+
+        var hf = HfModels.FirstOrDefault(m => m.Id.Equals(modelId, StringComparison.OrdinalIgnoreCase));
+        if (hf is not null)
+        {
+            hf.IsInstalled = false;
+            hf.IsDownloading = false;
+        }
+
+        ScanInstalledEngines();
+        UpdateDynamicVoices();
+        UpdateAvailableModels();
+        UpdateAvailableLanguages();
+        UpdateStudioVoices();
+        UpdateFilteredVoices();
+        UpdateFilteredHfModels();
+
+        Status = $"Model {modelId} deleted successfully and disk space freed.";
+    }
+
     public async Task StartAsync()
     {
         InitializeInstalledEngines();
