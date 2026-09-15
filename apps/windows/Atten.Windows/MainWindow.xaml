@@ -66,10 +66,21 @@
 
                             <ComboBox Header="Voice"
                                       ItemsSource="{Binding StudioVoices}"
-                                      DisplayMemberPath="Name"
-                                      SelectedValuePath="Id"
-                                      SelectedValue="{Binding SelectedVoiceID, Mode=TwoWay}"
-                                      HorizontalAlignment="Stretch" />
+                                      SelectedItem="{Binding SelectedVoice, Mode=TwoWay}"
+                                      HorizontalAlignment="Stretch">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="local:Voice">
+                                        <Grid ColumnSpacing="8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{x:Bind Name}" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" Text="{x:Bind Gender}" Opacity="0.6" FontSize="11" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
 
                             <Slider Header="Speed"
                                     Minimum="0.5"
@@ -132,9 +143,10 @@
                                     <ItemsControl ItemsSource="{x:Bind Voices}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="local:Voice">
-                                                <Grid Padding="12,6" ColumnSpacing="12" BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
+                                                <Grid Padding="12,8" ColumnSpacing="12" BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
                                                         <ColumnDefinition Width="Auto" />
                                                         <ColumnDefinition Width="Auto" />
                                                     </Grid.ColumnDefinitions>
@@ -143,9 +155,10 @@
                                                         <TextBlock Text="{x:Bind Language}" Opacity="0.7" FontSize="11" />
                                                     </StackPanel>
                                                     <TextBlock Grid.Column="1" Text="{x:Bind Gender}" Opacity="0.8" VerticalAlignment="Center" Margin="0,0,12,0" FontSize="12" />
-                                                    <Border Grid.Column="2" Background="{ThemeResource AccentFillColorTertiaryBrush}" CornerRadius="4" Padding="6,2" VerticalAlignment="Center">
+                                                    <Border Grid.Column="2" Background="{ThemeResource AccentFillColorTertiaryBrush}" CornerRadius="4" Padding="6,2" VerticalAlignment="Center" Margin="0,0,12,0">
                                                         <TextBlock Text="{x:Bind Quality}" FontSize="11" FontWeight="SemiBold" />
                                                     </Border>
+                                                    <Button Grid.Column="3" Content="Use Voice" Click="OnUseVoiceClicked" Tag="{x:Bind Id}" VerticalAlignment="Center" />
                                                 </Grid>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>

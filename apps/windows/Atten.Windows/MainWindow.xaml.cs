@@ -278,6 +278,24 @@ public sealed partial class MainWindow : Window
         await model.FetchHfModelsAsync();
     }
 
+    private void OnUseVoiceClicked(object sender, RoutedEventArgs args)
+    {
+        if (sender is Button btn && btn.Tag is string voiceId && !string.IsNullOrWhiteSpace(voiceId))
+        {
+            var voice = VoiceCatalog.ById(voiceId);
+            model.SelectVoice(voice);
+
+            // Switch UI navigation to Studio panel
+            Navigation.SelectedItem = Navigation.MenuItems[0];
+            StudioPanel.Visibility = Visibility.Visible;
+            PlaygroundPanel.Visibility = Visibility.Collapsed;
+            VoicesPanel.Visibility = Visibility.Collapsed;
+            ProjectsPanel.Visibility = Visibility.Collapsed;
+            ExportsPanel.Visibility = Visibility.Collapsed;
+            SettingsPanel.Visibility = Visibility.Collapsed;
+        }
+    }
+
     private void PlayCurrentOutput()
     {
         if (string.IsNullOrWhiteSpace(model.CurrentAudioPath) || !File.Exists(model.CurrentAudioPath))

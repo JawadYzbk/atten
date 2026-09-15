@@ -335,10 +335,50 @@ public sealed class MainViewModel : INotifyPropertyChanged
         set => Set(ref draftText, value);
     }
 
+    public Voice? SelectedVoice
+    {
+        get => StudioVoices.FirstOrDefault(v => v.Id == selectedVoiceID) ?? VoiceCatalog.ById(selectedVoiceID);
+        set
+        {
+            if (value is not null && selectedVoiceID != value.Id)
+            {
+                selectedVoiceID = value.Id;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedVoiceID)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedVoice)));
+            }
+        }
+    }
+
     public string SelectedVoiceID
     {
         get => selectedVoiceID;
-        set => Set(ref selectedVoiceID, value);
+        set
+        {
+            if (Set(ref selectedVoiceID, value))
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedVoice)));
+            }
+        }
+    }
+
+    public void SelectVoice(Voice voice)
+    {
+        if (voice is null) return;
+        selectedVoiceID = voice.Id;
+
+        if (SelectedModel != "All Models" && !voice.ModelEngine.Contains(SelectedModel, StringComparison.OrdinalIgnoreCase) && !SelectedModel.Contains(voice.ModelEngine, StringComparison.OrdinalIgnoreCase))
+        {
+            SelectedModel = "All Models";
+        }
+
+        if (SelectedLanguage != "All Languages" && !voice.Language.Equals(SelectedLanguage, StringComparison.OrdinalIgnoreCase))
+        {
+            SelectedLanguage = "All Languages";
+        }
+
+        UpdateStudioVoices();
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedVoiceID)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedVoice)));
     }
 
     public double Speed
@@ -435,6 +475,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public void UpdateStudioVoices()
     {
+        var targetVoiceId = selectedVoiceID;
         StudioVoices.Clear();
         var query = Voices.AsEnumerable();
         if (SelectedModel != "All Models")
@@ -453,10 +494,20 @@ public sealed class MainViewModel : INotifyPropertyChanged
             StudioVoices.Add(v);
         }
 
-        if (StudioVoices.Count > 0 && !StudioVoices.Any(v => v.Id == SelectedVoiceID))
+        if (StudioVoices.Count > 0)
         {
-            SelectedVoiceID = StudioVoices[0].Id;
+            var match = StudioVoices.FirstOrDefault(v => v.Id == targetVoiceId);
+            if (match is not null)
+            {
+                selectedVoiceID = match.Id;
+            }
+            else
+            {
+                selectedVoiceID = StudioVoices[0].Id;
+            }
         }
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedVoiceID)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedVoice)));
     }
 
     public void UpdateFilteredVoices()
