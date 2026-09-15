@@ -194,34 +194,146 @@ def download_xtts_model(progress_callback: Optional[Callable[[dict], None]] = No
 
 
 def download_hf_model(model_id: str, progress_callback: Optional[Callable[[dict], None]] = None) -> Path:
-    """Downloads any model from Hugging Face with progress callbacks."""
+    """Downloads any model from Hugging Face with live progress metrics and resumable chunk streams."""
     clean_id = model_id.strip()
     if clean_id.lower() in ("xtts-v2", "coqui/xtts-v2"):
         return download_xtts_model(progress_callback)
 
-    from huggingface_hub import snapshot_download
+    models_dir = get_models_directory()
+    dest_dir = models_dir / clean_id.replace('/', '--')
+    dest_dir.mkdir(parents=True, exist_ok=True)
 
+    from huggingface_hub import HfApi
+
+    api = HfApi()
     if progress_callback:
         progress_callback({
             "model": clean_id,
-            "percent": 30,
-            "status": f"Downloading {clean_id} weights from Hugging Face...",
+            "percent": 0,
+            "status": f"Fetching repository file manifest for {clean_id}...",
             "speed": "",
             "eta": "",
             "size_text": "",
         })
 
-    path = Path(snapshot_download(repo_id=clean_id))
+    try:
+        info = api.model_info(clean_id, files_metadata=True)
+        files = [(s.rfilename, s.size or 0) for s in (info.siblings or [])]
+    except Exception:
+        repo_files = api.list_repo_files(clean_id)
+        files = [(f, 0) for f in repo_files]
+
+    total_repo_bytes = sum(size for _, size in files)
+    total_files = len(files)
+
+    if total_files == 0:
+        raise ValueError(f"No files found for Hugging Face repository {clean_id}")
+
+    total_downloaded = 0
+    start_time = time.time()
+    last_update_time = start_time
+    session_downloaded = 0
+
+    for idx, (filename, file_size) in enumerate(files):
+        target = dest_dir / filename
+        target.parent.mkdir(parents=True, exist_ok=True)
+        
+        if target.is_file() and target.stat().st_size > 0:
+            total_downloaded += target.stat().st_size
+            continue
+
+        url = f"https://huggingface.co/{clean_id}/resolve/main/{filename}"
+        temp_target = dest_dir / f".{filename.replace('/', '_')}.part"
+        existing_bytes = temp_target.stat().st_size if temp_target.exists() else 0
+
+        headers = {"User-Agent": "Atten/0.2.1"}
+        if existing_bytes > 0:
+            headers["Range"] = f"bytes={existing_bytes}-"
+
+        req = urllib.request.Request(url, headers=headers)
+        try:
+            response = urllib.request.urlopen(req)
+        except urllib.error.HTTPError as e:
+            if e.code == 416:
+                existing_bytes = 0
+                headers.pop("Range", None)
+                req = urllib.request.Request(url, headers=headers)
+                response = urllib.request.urlopen(req)
+            else:
+                continue
+        except Exception:
+            continue
+
+        content_length = response.headers.get("content-length")
+        if response.status == 206:
+            file_total = existing_bytes + (int(content_length) if content_length else file_size)
+            mode = "ab"
+        else:
+            file_total = int(content_length) if content_length else file_size
+            existing_bytes = 0
+            mode = "wb"
+
+        downloaded_in_file = existing_bytes
+        total_downloaded += existing_bytes
+        chunk_size = 1024 * 512
+
+        with open(temp_target, mode) as out_file:
+            while True:
+                chunk = response.read(chunk_size)
+                if not chunk:
+                    break
+                out_file.write(chunk)
+                downloaded_in_file += len(chunk)
+                total_downloaded += len(chunk)
+                session_downloaded += len(chunk)
+
+                now = time.time()
+                elapsed = now - last_update_time
+                if elapsed >= 0.25:
+                    total_elapsed = now - start_time
+                    speed_bps = (session_downloaded / total_elapsed) if total_elapsed > 0 else 0
+                    
+                    if total_repo_bytes > 0:
+                        overall_percent = int((total_downloaded / total_repo_bytes) * 100)
+                        remaining_bytes = max(0, total_repo_bytes - total_downloaded)
+                        size_text = f"{format_bytes(total_downloaded)} / {format_bytes(total_repo_bytes)}"
+                    else:
+                        file_fraction = (downloaded_in_file / file_total) if file_total > 0 else 0
+                        overall_percent = int(((idx + file_fraction) / total_files) * 100)
+                        remaining_bytes = max(0, file_total - downloaded_in_file)
+                        size_text = f"{format_bytes(downloaded_in_file)} / {format_bytes(file_total)}"
+
+                    eta_seconds = (remaining_bytes / speed_bps) if speed_bps > 0 else 0
+
+                    if progress_callback:
+                        progress_callback({
+                            "model": clean_id,
+                            "file": filename,
+                            "file_index": idx + 1,
+                            "total_files": total_files,
+                            "percent": min(99, overall_percent),
+                            "speed": f"{speed_bps / (1024 * 1024):.1f} MB/s",
+                            "eta": format_time(eta_seconds),
+                            "size_text": size_text,
+                            "status": f"Downloading {filename} ({idx + 1}/{total_files})",
+                        })
+                    last_update_time = now
+
+        response.close()
+        if temp_target.exists():
+            if target.exists():
+                target.unlink()
+            temp_target.rename(target)
 
     if progress_callback:
         progress_callback({
             "model": clean_id,
             "percent": 100,
-            "status": f"{clean_id} downloaded successfully!",
             "speed": "",
             "eta": "",
-            "size_text": "",
+            "size_text": format_bytes(total_downloaded) if total_downloaded > 0 else "",
+            "status": f"{clean_id} downloaded successfully!",
             "installed": True,
         })
 
-    return path
+    return dest_dir

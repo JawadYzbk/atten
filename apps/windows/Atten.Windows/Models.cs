@@ -108,6 +108,7 @@ public sealed class HfModelInfo : INotifyPropertyChanged
     public int Likes { get; init; }
     public string DownloadsText { get; init; } = "";
     public string LikesText { get; init; } = "";
+    public string SizeText { get; init; } = "";
     public string LanguagesText { get; init; } = "";
     public IReadOnlyList<string> LanguageCodes { get; init; } = [];
 
@@ -209,6 +210,7 @@ public sealed record AppSettings
     public string SelectedVoiceID { get; set; } = "af_heart";
     public DeviceMode DeviceMode { get; set; } = DeviceMode.auto;
     public HashSet<string> FavoriteVoiceIDs { get; set; } = ["af_heart", "af_bella", "bf_emma"];
+    public HashSet<string> PendingDownloadModelIds { get; set; } = [];
 }
 
 public sealed record BackendInfo
@@ -254,6 +256,7 @@ public sealed class InstalledModelItem : INotifyPropertyChanged
 {
     private bool isInstalled;
     private bool isDownloading;
+    private bool isPaused;
     private int downloadProgress;
     private string downloadSpeed = "";
     private string downloadEta = "";
@@ -266,6 +269,23 @@ public sealed class InstalledModelItem : INotifyPropertyChanged
     public string SupportedLanguages { get; init; } = "";
     public bool IsBundled { get; init; }
 
+    public bool IsPaused
+    {
+        get => isPaused;
+        set
+        {
+            if (isPaused != value)
+            {
+                isPaused = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsPaused)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DownloadButtonText)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CancelButtonVisibility)));
+            }
+        }
+    }
+
+    public string DownloadButtonText => (isPaused || downloadProgress > 0) ? "Resume Download" : "Download Model";
+
     public bool IsInstalled
     {
         get => isInstalled;
@@ -277,6 +297,7 @@ public sealed class InstalledModelItem : INotifyPropertyChanged
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsInstalled)));
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(InstalledBadgeVisibility)));
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DownloadButtonVisibility)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CancelButtonVisibility)));
             }
         }
     }
@@ -292,6 +313,7 @@ public sealed class InstalledModelItem : INotifyPropertyChanged
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsDownloading)));
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DownloadingVisibility)));
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DownloadButtonVisibility)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CancelButtonVisibility)));
             }
         }
     }
@@ -305,6 +327,8 @@ public sealed class InstalledModelItem : INotifyPropertyChanged
             {
                 downloadProgress = value;
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DownloadProgress)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DownloadButtonText)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CancelButtonVisibility)));
             }
         }
     }
@@ -364,6 +388,7 @@ public sealed class InstalledModelItem : INotifyPropertyChanged
     public Visibility InstalledBadgeVisibility => IsInstalled ? Visibility.Visible : Visibility.Collapsed;
     public Visibility DownloadButtonVisibility => (!IsInstalled && !IsDownloading) ? Visibility.Visible : Visibility.Collapsed;
     public Visibility DownloadingVisibility => IsDownloading ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility CancelButtonVisibility => (!IsBundled && !IsInstalled && (IsDownloading || isPaused || downloadProgress > 0)) ? Visibility.Visible : Visibility.Collapsed;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 }

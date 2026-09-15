@@ -68,9 +68,25 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<HfModelInfo> HfModels { get; } = [];
     public ObservableCollection<HfModelInfo> FilteredHfModels { get; } = [];
     public ObservableCollection<string> HfLanguages { get; } = ["All Languages", "Arabic", "English", "German", "Spanish", "French", "Italian", "Portuguese", "Russian", "Turkish", "Dutch", "Polish", "Japanese", "Chinese", "Hindi"];
+    public ObservableCollection<string> HfSortOptions { get; } = ["Most Downloads", "Most Stars", "Provider (A-Z)", "Model Name (A-Z)"];
     public ObservableCollection<string> HfFilters { get; } = ["All Models", "Installed", "Available to Download"];
     public IReadOnlyList<AudioFormat> Formats { get; } = Enum.GetValues<AudioFormat>();
     public IReadOnlyList<DeviceMode> DeviceModes { get; } = Enum.GetValues<DeviceMode>();
+
+    private string selectedHfSort = "Most Downloads";
+
+    public string SelectedHfSort
+    {
+        get => selectedHfSort;
+        set
+        {
+            if (Set(ref selectedHfSort, value))
+            {
+                UpdateFilteredHfModels();
+                _ = FetchHfModelsAsync();
+            }
+        }
+    }
 
     public string SelectedHfLanguage
     {
@@ -445,8 +461,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public void UpdateFilteredHfModels()
     {
-        FilteredHfModels.Clear();
         var query = (hfSearchText ?? "").Trim().ToLowerInvariant();
+        var list = new List<HfModelInfo>();
 
         foreach (var m in HfModels)
         {
@@ -479,7 +495,22 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 if (!matches) continue;
             }
 
-            FilteredHfModels.Add(m);
+            list.Add(m);
+        }
+
+        // Apply sorting
+        IEnumerable<HfModelInfo> sorted = SelectedHfSort switch
+        {
+            "Most Stars" => list.OrderByDescending(m => m.Likes),
+            "Provider (A-Z)" => list.OrderBy(m => string.IsNullOrEmpty(m.Author) ? m.Name : m.Author).ThenBy(m => m.Name),
+            "Model Name (A-Z)" => list.OrderBy(m => m.Name),
+            _ => list.OrderByDescending(m => m.Downloads)
+        };
+
+        FilteredHfModels.Clear();
+        foreach (var item in sorted)
+        {
+            FilteredHfModels.Add(item);
         }
     }
 
@@ -499,7 +530,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 }
             }
 
-            var url = $"https://huggingface.co/api/models?pipeline_tag=text-to-speech{langParam}&sort=downloads&direction=-1&limit=30";
+            var sortParam = SelectedHfSort == "Most Stars" ? "likes" : "downloads";
+            var url = $"https://huggingface.co/api/models?pipeline_tag=text-to-speech{langParam}&sort={sortParam}&direction=-1&limit=30&expand[]=safetensors";
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Add("User-Agent", "Atten/0.2.1");
 
@@ -554,6 +586,29 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
                     var likesText = likes >= 1_000 ? $"{likes / 1_000.0:F1}k" : $"{likes}";
 
+                    string sizeText = "";
+                    if (item.TryGetProperty("safetensors", out var safetensors) && safetensors.TryGetProperty("total", out var total))
+                    {
+                        var totalBytes = total.GetInt64();
+                        if (totalBytes >= 1_073_741_824)
+                            sizeText = $"{totalBytes / 1_073_741_824.0:F1} GB";
+                        else if (totalBytes >= 1_048_576)
+                            sizeText = $"{totalBytes / 1_048_576.0:F0} MB";
+                        else if (totalBytes > 0)
+                            sizeText = $"{totalBytes / 1024.0:F0} KB";
+                    }
+
+                    if (string.IsNullOrEmpty(sizeText))
+                    {
+                        if (id.Contains("Kokoro", StringComparison.OrdinalIgnoreCase)) sizeText = "82 MB";
+                        else if (id.Contains("XTTS", StringComparison.OrdinalIgnoreCase)) sizeText = "1.87 GB";
+                        else if (id.Contains("mms-tts", StringComparison.OrdinalIgnoreCase)) sizeText = "145 MB";
+                        else if (id.Contains("1.7B", StringComparison.OrdinalIgnoreCase) || id.Contains("1.5", StringComparison.OrdinalIgnoreCase)) sizeText = "1.7 GB";
+                        else if (id.Contains("F5-TTS", StringComparison.OrdinalIgnoreCase)) sizeText = "1.1 GB";
+                        else if (id.Contains("chatterbox", StringComparison.OrdinalIgnoreCase)) sizeText = "1.9 GB";
+                        else sizeText = "~1.2 GB";
+                    }
+
                     var isInstalled = id.Equals("hexgrad/Kokoro-82M", StringComparison.OrdinalIgnoreCase) ||
                                       (id.Equals("coqui/XTTS-v2", StringComparison.OrdinalIgnoreCase) && IsXttsInstalled) ||
                                       id.Equals("facebook/mms-tts-ara", StringComparison.OrdinalIgnoreCase);
@@ -567,6 +622,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         Likes = likes,
                         DownloadsText = downloadsText,
                         LikesText = likesText,
+                        SizeText = sizeText,
                         LanguagesText = langText,
                         LanguageCodes = langCodes,
                         IsInstalled = isInstalled
@@ -604,6 +660,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             Likes = 6900,
             DownloadsText = "11.5M downloads",
             LikesText = "6.9k",
+            SizeText = "82 MB",
             LanguagesText = "English, Spanish, French, Italian, Portuguese, Japanese, Chinese, Hindi",
             LanguageCodes = ["en", "es", "fr", "it", "pt", "ja", "zh", "hi"],
             IsInstalled = true
@@ -617,6 +674,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             Likes = 3800,
             DownloadsText = "7.3M downloads",
             LikesText = "3.8k",
+            SizeText = "1.87 GB",
             LanguagesText = "Arabic, German, Russian, Turkish, Dutch, Polish, and 16+ languages",
             LanguageCodes = ["ar", "de", "ru", "tr", "nl", "pl", "es", "fr", "it", "pt", "ja", "zh", "hi", "ko"],
             IsInstalled = IsXttsInstalled
@@ -630,6 +688,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             Likes = 1450,
             DownloadsText = "1.2M downloads",
             LikesText = "1.5k",
+            SizeText = "145 MB",
             LanguagesText = "Arabic (العربية)",
             LanguageCodes = ["ar", "ara"],
             IsInstalled = true
@@ -643,6 +702,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             Likes = 1200,
             DownloadsText = "950K downloads",
             LikesText = "1.2k",
+            SizeText = "1.1 GB",
             LanguagesText = "English, Chinese",
             LanguageCodes = ["en", "zh"],
             IsInstalled = false
@@ -684,9 +744,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
         });
     }
 
+    private readonly HashSet<string> pendingDownloadModelIds = [];
+
     public async Task DownloadHfModelAsync(string modelId)
     {
         if (IsDownloadingModel) return;
+
+        pendingDownloadModelIds.Add(modelId);
+        _ = SaveSettingsAsync();
 
         var targetModel = HfModels.FirstOrDefault(m => m.Id.Equals(modelId, StringComparison.OrdinalIgnoreCase));
         if (targetModel is not null)
@@ -712,19 +777,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 SupportedLanguages = targetModel?.LanguagesText ?? "Multilingual",
                 IsInstalled = false,
                 IsDownloading = true,
-                DownloadStatus = $"Connecting to Hugging Face for {modelId}..."
+                IsPaused = false,
+                DownloadStatus = $"Resuming / Connecting to Hugging Face for {modelId}..."
             };
             InstalledEngines.Add(engine);
         }
         else
         {
             engine.IsDownloading = true;
-            engine.DownloadStatus = $"Connecting to Hugging Face for {modelId}...";
+            engine.IsPaused = false;
+            engine.DownloadStatus = $"Resuming / Connecting to Hugging Face for {modelId}...";
         }
 
         IsDownloadingModel = true;
         IsDownloadPaused = false;
-        DownloadStatus = $"Connecting to Hugging Face for {modelId}...";
+        DownloadStatus = $"Resuming download for {modelId}...";
         downloadCts?.Cancel();
         downloadCts = new CancellationTokenSource();
 
@@ -755,6 +822,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             engine.IsInstalled = true;
             engine.IsDownloading = false;
+            engine.IsPaused = false;
             engine.DownloadSpeed = "";
             engine.DownloadEta = "";
             engine.DownloadStatus = "Download complete and model ready!";
@@ -763,6 +831,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
             {
                 IsXttsInstalled = true;
             }
+
+            pendingDownloadModelIds.Remove(modelId);
+            _ = SaveSettingsAsync();
 
             IsDownloadPaused = false;
             DownloadSpeed = "";
@@ -775,6 +846,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             if (targetModel is not null) targetModel.IsDownloading = false;
             engine.IsDownloading = false;
+            engine.IsPaused = true;
             engine.DownloadSpeed = "";
             engine.DownloadEta = "";
             engine.DownloadStatus = "Download paused (resumable).";
@@ -782,11 +854,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
             DownloadSpeed = "";
             DownloadEta = "";
             DownloadStatus = "Download paused (resumable).";
+            _ = SaveSettingsAsync();
         }
         catch (Exception ex)
         {
             if (targetModel is not null) targetModel.IsDownloading = false;
             engine.IsDownloading = false;
+            engine.IsPaused = true;
             engine.DownloadSpeed = "";
             engine.DownloadEta = "";
             engine.DownloadStatus = $"Download stopped: {ex.Message}";
@@ -794,6 +868,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             DownloadSpeed = "";
             DownloadEta = "";
             DownloadStatus = $"Download stopped: {ex.Message}";
+            _ = SaveSettingsAsync();
         }
         finally
         {
@@ -811,6 +886,48 @@ public sealed class MainViewModel : INotifyPropertyChanged
         downloadCts?.Cancel();
     }
 
+    public void PauseEngineDownload(string modelId)
+    {
+        downloadCts?.Cancel();
+    }
+
+    public void CancelEngineDownload(string modelId)
+    {
+        if (IsDownloadingModel)
+        {
+            downloadCts?.Cancel();
+        }
+
+        pendingDownloadModelIds.Remove(modelId);
+        _ = SaveSettingsAsync();
+
+        var engine = InstalledEngines.FirstOrDefault(e => e.Id.Equals(modelId, StringComparison.OrdinalIgnoreCase));
+        if (engine is not null)
+        {
+            engine.IsDownloading = false;
+            engine.IsPaused = false;
+            engine.DownloadSpeed = "";
+            engine.DownloadEta = "";
+            engine.DownloadStatus = "Download cancelled.";
+            if (!engine.IsBundled && !engine.IsInstalled)
+            {
+                InstalledEngines.Remove(engine);
+            }
+        }
+
+        var targetModel = HfModels.FirstOrDefault(m => m.Id.Equals(modelId, StringComparison.OrdinalIgnoreCase));
+        if (targetModel is not null)
+        {
+            targetModel.IsDownloading = false;
+        }
+
+        IsDownloadPaused = false;
+        DownloadSpeed = "";
+        DownloadEta = "";
+        DownloadStatus = $"Download for {modelId} cancelled.";
+        Status = $"Download for {modelId} cancelled.";
+    }
+
     public async Task StartAsync()
     {
         InitializeInstalledEngines();
@@ -825,6 +942,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Speed = settings.DefaultSpeed;
         SelectedVoiceID = settings.SelectedVoiceID;
         DeviceMode = settings.DeviceMode;
+
+        pendingDownloadModelIds.Clear();
+        foreach (var id in settings.PendingDownloadModelIds)
+        {
+            pendingDownloadModelIds.Add(id);
+        }
 
         Projects.Clear();
         foreach (var project in (await storage.LoadProjectsAsync()).OrderByDescending(project => project.UpdatedAt))
@@ -843,6 +966,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         _ = FetchHfModelsAsync();
+
+        // Automatically resume any downloads that were in progress when the app was closed
+        if (pendingDownloadModelIds.Count > 0)
+        {
+            var toResume = pendingDownloadModelIds.ToList();
+            foreach (var pendingId in toResume)
+            {
+                if (pendingId.Contains("xtts", StringComparison.OrdinalIgnoreCase) && (BackendInfo?.XttsInstalled == true || IsXttsInstalled))
+                {
+                    pendingDownloadModelIds.Remove(pendingId);
+                    continue;
+                }
+
+                _ = DownloadHfModelAsync(pendingId);
+            }
+            _ = SaveSettingsAsync();
+        }
     }
 
     public async Task SaveSettingsAsync()
@@ -853,7 +993,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             DefaultFormat = Format,
             DefaultSpeed = Speed,
             SelectedVoiceID = SelectedVoiceID,
-            DeviceMode = DeviceMode
+            DeviceMode = DeviceMode,
+            PendingDownloadModelIds = pendingDownloadModelIds
         });
     }
 

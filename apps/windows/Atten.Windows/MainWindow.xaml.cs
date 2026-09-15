@@ -192,6 +192,26 @@ public sealed partial class MainWindow : Window
         await model.DownloadXttsModelAsync();
     }
 
+    private void OnPauseEngineClicked(object sender, RoutedEventArgs args)
+    {
+        if (sender is Button btn && btn.Tag is string modelId && !string.IsNullOrWhiteSpace(modelId))
+        {
+            model.PauseEngineDownload(modelId);
+        }
+        else
+        {
+            model.PauseModelDownload();
+        }
+    }
+
+    private void OnCancelEngineClicked(object sender, RoutedEventArgs args)
+    {
+        if (sender is Button btn && btn.Tag is string modelId && !string.IsNullOrWhiteSpace(modelId))
+        {
+            model.CancelEngineDownload(modelId);
+        }
+    }
+
     private void OnPauseXttsClicked(object sender, RoutedEventArgs args)
     {
         if (model.IsDownloadingModel)
