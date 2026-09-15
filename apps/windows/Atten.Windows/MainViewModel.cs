@@ -531,7 +531,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             }
 
             var sortParam = SelectedHfSort == "Most Stars" ? "likes" : "downloads";
-            var url = $"https://huggingface.co/api/models?pipeline_tag=text-to-speech{langParam}&sort={sortParam}&direction=-1&limit=30&expand[]=safetensors";
+            var url = $"https://huggingface.co/api/models?pipeline_tag=text-to-speech{langParam}&sort={sortParam}&direction=-1&limit=30&expand[]=likes&expand[]=downloads&expand[]=safetensors&expand[]=gguf&expand[]=tags&expand[]=cardData";
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Add("User-Agent", "Atten/0.2.1");
 
@@ -553,6 +553,32 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
                     var langCodes = new List<string>();
                     var langNames = new List<string>();
+
+                    if (item.TryGetProperty("cardData", out var cardData) && cardData.TryGetProperty("language", out var cardLang))
+                    {
+                        if (cardLang.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var lElem in cardLang.EnumerateArray())
+                            {
+                                var code = (lElem.GetString() ?? "").ToLowerInvariant();
+                                if (!string.IsNullOrEmpty(code) && !langCodes.Contains(code)) langCodes.Add(code);
+                                if (HfModelInfo.CodeToLanguage.TryGetValue(code, out var langName) && !langNames.Contains(langName))
+                                {
+                                    langNames.Add(langName);
+                                }
+                            }
+                        }
+                        else if (cardLang.ValueKind == JsonValueKind.String)
+                        {
+                            var code = (cardLang.GetString() ?? "").ToLowerInvariant();
+                            if (!string.IsNullOrEmpty(code) && !langCodes.Contains(code)) langCodes.Add(code);
+                            if (HfModelInfo.CodeToLanguage.TryGetValue(code, out var langName) && !langNames.Contains(langName))
+                            {
+                                langNames.Add(langName);
+                            }
+                        }
+                    }
+
                     if (item.TryGetProperty("tags", out var tags))
                     {
                         foreach (var tag in tags.EnumerateArray())
@@ -560,11 +586,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
                             var t = (tag.GetString() ?? "").ToLowerInvariant();
                             if (t.StartsWith("language:"))
                             {
-                                t = t.Replace("language:", "");
+                                t = t.Substring("language:".Length);
                             }
+                            if (!langCodes.Contains(t)) langCodes.Add(t);
                             if (HfModelInfo.CodeToLanguage.TryGetValue(t, out var langName))
                             {
-                                if (!langCodes.Contains(t)) langCodes.Add(t);
                                 if (!langNames.Contains(langName)) langNames.Add(langName);
                             }
                         }
@@ -578,13 +604,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     }
                     else
                     {
-                        langText = id.Contains("ara") ? "Arabic" : (id.Contains("deu") ? "German" : "Multilingual");
+                        langText = id.Contains("ara", StringComparison.OrdinalIgnoreCase) ? "Arabic" : 
+                                   (id.Contains("deu", StringComparison.OrdinalIgnoreCase) ? "German" : 
+                                   (id.Contains("rus", StringComparison.OrdinalIgnoreCase) ? "Russian" : "Multilingual"));
                     }
 
                     var downloadsText = downloads >= 1_000_000 ? $"{downloads / 1_000_000.0:F1}M downloads" :
                                         downloads >= 1_000 ? $"{downloads / 1_000.0:F1}K downloads" : $"{downloads} downloads";
 
-                    var likesText = likes >= 1_000 ? $"{likes / 1_000.0:F1}k" : $"{likes}";
+                    var likesText = likes >= 1_000_000 ? $"{likes / 1_000_000.0:F1}M" :
+                                    likes >= 1_000 ? $"{likes / 1_000.0:F1}k" : $"{likes}";
 
                     string sizeText = "";
                     if (item.TryGetProperty("safetensors", out var safetensors) && safetensors.TryGetProperty("total", out var total))
@@ -604,6 +633,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         else if (id.Contains("XTTS", StringComparison.OrdinalIgnoreCase)) sizeText = "1.87 GB";
                         else if (id.Contains("mms-tts", StringComparison.OrdinalIgnoreCase)) sizeText = "145 MB";
                         else if (id.Contains("1.7B", StringComparison.OrdinalIgnoreCase) || id.Contains("1.5", StringComparison.OrdinalIgnoreCase)) sizeText = "1.7 GB";
+                        else if (id.Contains("0.6B", StringComparison.OrdinalIgnoreCase)) sizeText = "864 MB";
                         else if (id.Contains("F5-TTS", StringComparison.OrdinalIgnoreCase)) sizeText = "1.1 GB";
                         else if (id.Contains("chatterbox", StringComparison.OrdinalIgnoreCase)) sizeText = "1.9 GB";
                         else sizeText = "~1.2 GB";
