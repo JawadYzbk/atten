@@ -626,6 +626,19 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         else if (totalBytes > 0)
                             sizeText = $"{totalBytes / 1024.0:F0} KB";
                     }
+                    else if (item.TryGetProperty("gguf", out var gguf))
+                    {
+                        long gBytes = 0;
+                        if (gguf.TryGetProperty("totalFileSize", out var gTotalFile)) gBytes = gTotalFile.GetInt64();
+                        else if (gguf.TryGetProperty("total", out var gTotal)) gBytes = gTotal.GetInt64();
+
+                        if (gBytes >= 1_073_741_824)
+                            sizeText = $"{gBytes / 1_073_741_824.0:F1} GB";
+                        else if (gBytes >= 1_048_576)
+                            sizeText = $"{gBytes / 1_048_576.0:F0} MB";
+                        else if (gBytes > 0)
+                            sizeText = $"{gBytes / 1024.0:F0} KB";
+                    }
 
                     if (string.IsNullOrEmpty(sizeText))
                     {

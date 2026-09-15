@@ -193,6 +193,88 @@ def download_xtts_model(progress_callback: Optional[Callable[[dict], None]] = No
     return xtts_dir
 
 
+def get_hf_repo_files(clean_id: str) -> List[tuple]:
+    """Retrieves and filters repository files to only essential model weights and configs."""
+    all_files = []
+    
+    # Try tree endpoint first (has accurate file sizes and all files recursively)
+    try:
+        tree_url = f"https://huggingface.co/api/models/{clean_id}/tree/main?recursive=true"
+        req = urllib.request.Request(tree_url, headers={"User-Agent": "Atten/0.2.1"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            all_files = [(item["path"], int(item.get("size", 0))) for item in data if item.get("type") == "file"]
+    except Exception:
+        pass
+
+    # Fallback to model info endpoint
+    if not all_files:
+        try:
+            info_url = f"https://huggingface.co/api/models/{clean_id}"
+            req = urllib.request.Request(info_url, headers={"User-Agent": "Atten/0.2.1"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                all_files = [(s.get("rfilename", ""), 0) for s in data.get("siblings", [])]
+        except Exception:
+            pass
+
+    if not all_files:
+        return []
+
+    # Smart filtering
+    ignored_exts = ('.png', '.jpg', '.jpeg', '.gif', '.mp4', '.wav', '.flac', '.mp3', '.gitattributes', '.gitignore')
+    safetensor_stems = {fname[:-len('.safetensors')] for fname, _ in all_files if fname.lower().endswith('.safetensors')}
+    
+    gguf_files = []
+    filtered = []
+
+    for fname, size in all_files:
+        lower = fname.lower()
+        if any(lower.endswith(ext) for ext in ignored_exts) or 'assets/' in lower or 'demo/' in lower or 'examples/' in lower:
+            continue
+            
+        if lower.endswith('.gguf'):
+            gguf_files.append((fname, size))
+            continue
+            
+        # If it's a pytorch/bin file and a safetensor version exists, skip it
+        if lower.endswith('.pt') or lower.endswith('.bin') or lower.endswith('.pth') or lower.endswith('.ckpt'):
+            stem = fname.rsplit('.', 1)[0]
+            if stem in safetensor_stems:
+                continue
+                
+        filtered.append((fname, size))
+
+    # For GGUF repos: select optimal quantization (Q4_K_M > Q8_0 > BF16 > F16 > others) for each model part
+    if gguf_files:
+        import re
+        quant_pattern = re.compile(r'[-_](q[0-9]_[a-z0-9_]+|bf16|f16|f32|q8_0|q4_k_m|q5_k_m)\.gguf$', re.I)
+        groups = {}
+        for fname, size in gguf_files:
+            match = quant_pattern.search(fname)
+            if match:
+                base = fname[:match.start()]
+                groups.setdefault(base, []).append((fname, size, match.group(1).upper()))
+            else:
+                groups.setdefault(fname, []).append((fname, size, 'RAW'))
+                
+        pref_order = ['Q4_K_M', 'Q8_0', 'BF16', 'Q5_K_M', 'Q6_K', 'F16', 'F32']
+        for base, items in groups.items():
+            chosen = None
+            for p in pref_order:
+                for f, s, q in items:
+                    if q == p:
+                        chosen = (f, s)
+                        break
+                if chosen:
+                    break
+            if not chosen:
+                chosen = (items[0][0], items[0][1])
+            filtered.append(chosen)
+
+    return filtered
+
+
 def download_hf_model(model_id: str, progress_callback: Optional[Callable[[dict], None]] = None) -> Path:
     """Downloads any model from Hugging Face with live progress metrics and resumable chunk streams."""
     clean_id = model_id.strip()
@@ -203,9 +285,6 @@ def download_hf_model(model_id: str, progress_callback: Optional[Callable[[dict]
     dest_dir = models_dir / clean_id.replace('/', '--')
     dest_dir.mkdir(parents=True, exist_ok=True)
 
-    from huggingface_hub import HfApi
-
-    api = HfApi()
     if progress_callback:
         progress_callback({
             "model": clean_id,
@@ -216,13 +295,7 @@ def download_hf_model(model_id: str, progress_callback: Optional[Callable[[dict]
             "size_text": "",
         })
 
-    try:
-        info = api.model_info(clean_id, files_metadata=True)
-        files = [(s.rfilename, s.size or 0) for s in (info.siblings or [])]
-    except Exception:
-        repo_files = api.list_repo_files(clean_id)
-        files = [(f, 0) for f in repo_files]
-
+    files = get_hf_repo_files(clean_id)
     total_repo_bytes = sum(size for _, size in files)
     total_files = len(files)
 
