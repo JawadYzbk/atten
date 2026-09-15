@@ -688,7 +688,187 @@ public sealed class MainViewModel : INotifyPropertyChanged
             }
             UpdateFilteredHfModels();
             IsFetchingHfModels = false;
+
+            var snapshot = HfModels.ToList();
+            _ = FetchManifestSizesForModelsAsync(snapshot);
         }
+    }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> ManifestSizeCache = new(StringComparer.OrdinalIgnoreCase);
+
+    private async Task FetchManifestSizesForModelsAsync(List<HfModelInfo> models)
+    {
+        var sem = new SemaphoreSlim(4);
+        var tasks = models.Select(async m =>
+        {
+            await sem.WaitAsync();
+            try
+            {
+                var exactSize = await GetExactHfModelSizeAsync(m.Id);
+                if (!string.IsNullOrEmpty(exactSize))
+                {
+                    m.SizeText = exactSize;
+                }
+            }
+            catch
+            {
+            }
+            finally
+            {
+                sem.Release();
+            }
+        });
+
+        await Task.WhenAll(tasks);
+    }
+
+    public async Task<string> GetExactHfModelSizeAsync(string cleanId)
+    {
+        if (string.IsNullOrWhiteSpace(cleanId)) return "";
+        if (cleanId.Equals("hexgrad/Kokoro-82M", StringComparison.OrdinalIgnoreCase)) return "82 MB";
+        if (cleanId.Equals("coqui/XTTS-v2", StringComparison.OrdinalIgnoreCase)) return "1.87 GB";
+
+        if (ManifestSizeCache.TryGetValue(cleanId, out var cached))
+        {
+            return cached;
+        }
+
+        try
+        {
+            var url = $"https://huggingface.co/api/models/{cleanId}/tree/main?recursive=true";
+            using var req = new HttpRequestMessage(HttpMethod.Get, url);
+            req.Headers.Add("User-Agent", "Atten/0.2.1");
+            var res = await httpClient.SendAsync(req);
+            if (!res.IsSuccessStatusCode) return "";
+
+            var json = await res.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+
+            var ignoredExts = new[] { ".png", ".jpg", ".jpeg", ".gif", ".mp4", ".wav", ".flac", ".mp3", ".gitattributes", ".gitignore" };
+            var allFiles = new List<(string path, long size)>();
+
+            foreach (var elem in doc.RootElement.EnumerateArray())
+            {
+                if (elem.TryGetProperty("type", out var tProp) && tProp.GetString() == "file")
+                {
+                    var path = elem.GetProperty("path").GetString() ?? "";
+                    var size = elem.TryGetProperty("size", out var sProp) ? sProp.GetInt64() : 0L;
+                    allFiles.Add((path, size));
+                }
+            }
+
+            var safetensorStems = allFiles
+                .Where(f => f.path.EndsWith(".safetensors", StringComparison.OrdinalIgnoreCase))
+                .Select(f => f.path[..^".safetensors".Length])
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var ggufFiles = new List<(string path, long size)>();
+            var filtered = new List<(string path, long size)>();
+
+            foreach (var (path, size) in allFiles)
+            {
+                var lower = path.ToLowerInvariant();
+                if (ignoredExts.Any(ext => lower.EndsWith(ext)) || lower.Contains("assets/") || lower.Contains("demo/") || lower.Contains("examples/"))
+                {
+                    continue;
+                }
+
+                if (lower.EndsWith(".gguf"))
+                {
+                    ggufFiles.Add((path, size));
+                    continue;
+                }
+
+                if (lower.EndsWith(".pt") || lower.EndsWith(".bin") || lower.EndsWith(".pth") || lower.EndsWith(".ckpt"))
+                {
+                    var lastDot = path.LastIndexOf('.');
+                    var stem = lastDot >= 0 ? path[..lastDot] : path;
+                    if (safetensorStems.Contains(stem))
+                    {
+                        continue;
+                    }
+                }
+
+                filtered.Add((path, size));
+            }
+
+            if (ggufFiles.Count > 0)
+            {
+                var quantRegex = new System.Text.RegularExpressions.Regex(@"[-_](q[0-9]_[a-z0-9_]+|bf16|f16|f32|q8_0|q4_k_m|q5_k_m)\.gguf$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                var groups = new Dictionary<string, List<(string path, long size, string quant)>>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var (path, size) in ggufFiles)
+                {
+                    var match = quantRegex.Match(path);
+                    if (match.Success)
+                    {
+                        var baseName = path[..match.Index];
+                        if (!groups.TryGetValue(baseName, out var grp))
+                        {
+                            grp = new List<(string, long, string)>();
+                            groups[baseName] = grp;
+                        }
+                        grp.Add((path, size, match.Groups[1].Value.ToUpperInvariant()));
+                    }
+                    else
+                    {
+                        if (!groups.TryGetValue(path, out var grp))
+                        {
+                            grp = new List<(string, long, string)>();
+                            groups[path] = grp;
+                        }
+                        grp.Add((path, size, "RAW"));
+                    }
+                }
+
+                var prefOrder = new[] { "Q4_K_M", "Q8_0", "BF16", "Q5_K_M", "Q6_K", "F16", "F32" };
+                foreach (var grp in groups.Values)
+                {
+                    (string path, long size) chosen = default;
+                    bool found = false;
+                    foreach (var p in prefOrder)
+                    {
+                        var match = grp.FirstOrDefault(x => x.quant == p);
+                        if (match.path != null)
+                        {
+                            chosen = (match.path, match.size);
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found && grp.Count > 0)
+                    {
+                        chosen = (grp[0].path, grp[0].size);
+                    }
+                    if (chosen.path != null)
+                    {
+                        filtered.Add(chosen);
+                    }
+                }
+            }
+
+            long totalBytes = filtered.Sum(f => f.size);
+            if (totalBytes > 0)
+            {
+                string formatted;
+                if (totalBytes >= 1_073_741_824)
+                    formatted = $"{totalBytes / 1_073_741_824.0:F2} GB";
+                else if (totalBytes >= 1_048_576)
+                    formatted = $"{totalBytes / 1_048_576.0:F1} MB";
+                else if (totalBytes >= 1024)
+                    formatted = $"{totalBytes / 1024.0:F0} KB";
+                else
+                    formatted = $"{totalBytes} B";
+
+                ManifestSizeCache[cleanId] = formatted;
+                return formatted;
+            }
+        }
+        catch
+        {
+        }
+
+        return "";
     }
 
     private void PopulateFallbackHfModels()

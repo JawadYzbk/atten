@@ -106,9 +106,21 @@ public sealed class HfModelInfo : INotifyPropertyChanged
     public string Author { get; init; } = "";
     public int Downloads { get; init; }
     public int Likes { get; init; }
+    private string sizeText = "";
     public string DownloadsText { get; init; } = "";
     public string LikesText { get; init; } = "";
-    public string SizeText { get; init; } = "";
+    public string SizeText
+    {
+        get => sizeText;
+        set
+        {
+            if (sizeText != value)
+            {
+                sizeText = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SizeText)));
+            }
+        }
+    }
     public string LanguagesText { get; init; } = "";
     public IReadOnlyList<string> LanguageCodes { get; init; } = [];
 
