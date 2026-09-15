@@ -179,56 +179,36 @@ public sealed partial class MainWindow : Window
         return ts.Hours > 0 ? $"{ts.Hours:D2}:{ts.Minutes:D2}:{ts.Seconds:D2}" : $"{ts.Minutes:D2}:{ts.Seconds:D2}";
     }
 
-    private async void OnDownloadXttsClicked(object sender, RoutedEventArgs args)
+    private async void OnDownloadInstalledEngineClicked(object sender, RoutedEventArgs args)
     {
-        if (model.IsDownloadingModel) return;
-
-        DownloadXttsButton.IsEnabled = false;
-        XttsProgressBar.Visibility = Visibility.Visible;
-        XttsMetricsGrid.Visibility = Visibility.Visible;
-        PauseXttsButton.Visibility = Visibility.Visible;
-        PauseXttsButton.Content = "Pause";
-
-        try
+        if (sender is Button btn && btn.Tag is string modelId && !string.IsNullOrWhiteSpace(modelId))
         {
-            await model.DownloadXttsModelAsync();
-            if (model.IsXttsInstalled)
-            {
-                DownloadXttsButton.Content = "Installed";
-                DownloadXttsButton.IsEnabled = false;
-                PauseXttsButton.Visibility = Visibility.Collapsed;
-                XttsMetricsGrid.Visibility = Visibility.Collapsed;
-            }
-            else
-            {
-                DownloadXttsButton.Content = "Resume Download";
-                DownloadXttsButton.IsEnabled = true;
-                PauseXttsButton.Content = "Resume";
-            }
-        }
-        finally
-        {
-            if (!model.IsXttsInstalled)
-            {
-                DownloadXttsButton.Content = "Resume Download";
-                DownloadXttsButton.IsEnabled = true;
-                PauseXttsButton.Content = "Resume";
-            }
+            await model.DownloadHfModelAsync(modelId);
         }
     }
 
-    private async void OnPauseXttsClicked(object sender, RoutedEventArgs args)
+    private async void OnDownloadXttsClicked(object sender, RoutedEventArgs args)
+    {
+        await model.DownloadXttsModelAsync();
+    }
+
+    private void OnPauseXttsClicked(object sender, RoutedEventArgs args)
     {
         if (model.IsDownloadingModel)
         {
             model.PauseModelDownload();
-            PauseXttsButton.Content = "Resume";
-            DownloadXttsButton.Content = "Resume Download";
-            DownloadXttsButton.IsEnabled = true;
         }
         else
         {
-            OnDownloadXttsClicked(sender, args);
+            _ = model.DownloadXttsModelAsync();
+        }
+    }
+
+    private async void OnDownloadHfModelClicked(object sender, RoutedEventArgs args)
+    {
+        if (sender is Button btn && btn.Tag is string modelId)
+        {
+            await model.DownloadHfModelAsync(modelId);
         }
     }
 

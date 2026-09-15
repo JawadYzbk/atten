@@ -191,3 +191,37 @@ def download_xtts_model(progress_callback: Optional[Callable[[dict], None]] = No
         })
 
     return xtts_dir
+
+
+def download_hf_model(model_id: str, progress_callback: Optional[Callable[[dict], None]] = None) -> Path:
+    """Downloads any model from Hugging Face with progress callbacks."""
+    clean_id = model_id.strip()
+    if clean_id.lower() in ("xtts-v2", "coqui/xtts-v2"):
+        return download_xtts_model(progress_callback)
+
+    from huggingface_hub import snapshot_download
+
+    if progress_callback:
+        progress_callback({
+            "model": clean_id,
+            "percent": 30,
+            "status": f"Downloading {clean_id} weights from Hugging Face...",
+            "speed": "",
+            "eta": "",
+            "size_text": "",
+        })
+
+    path = Path(snapshot_download(repo_id=clean_id))
+
+    if progress_callback:
+        progress_callback({
+            "model": clean_id,
+            "percent": 100,
+            "status": f"{clean_id} downloaded successfully!",
+            "speed": "",
+            "eta": "",
+            "size_text": "",
+            "installed": True,
+        })
+
+    return path

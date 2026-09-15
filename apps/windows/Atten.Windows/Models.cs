@@ -1,4 +1,6 @@
+using System.ComponentModel;
 using System.Text.Json.Serialization;
+using Microsoft.UI.Xaml;
 
 namespace Atten.Windows;
 
@@ -38,8 +40,67 @@ public sealed record VoiceGroup(string Language, string ModelEngine, IReadOnlyLi
     public string Header => $"{Language} • {Voices.Count} voices ({ModelEngine})";
 }
 
-public sealed record HfModelInfo
+public sealed class HfModelInfo : INotifyPropertyChanged
 {
+    public static readonly Dictionary<string, string> LanguageToCode = new(StringComparer.OrdinalIgnoreCase)
+    {
+        { "Arabic", "ar" },
+        { "English", "en" },
+        { "German", "de" },
+        { "Spanish", "es" },
+        { "French", "fr" },
+        { "Italian", "it" },
+        { "Portuguese", "pt" },
+        { "Russian", "ru" },
+        { "Turkish", "tr" },
+        { "Dutch", "nl" },
+        { "Polish", "pl" },
+        { "Japanese", "ja" },
+        { "Chinese", "zh" },
+        { "Hindi", "hi" },
+        { "Korean", "ko" },
+        { "Swedish", "sv" }
+    };
+
+    public static readonly Dictionary<string, string> CodeToLanguage = new(StringComparer.OrdinalIgnoreCase)
+    {
+        { "ar", "Arabic" },
+        { "ara", "Arabic" },
+        { "en", "English" },
+        { "eng", "English" },
+        { "de", "German" },
+        { "deu", "German" },
+        { "es", "Spanish" },
+        { "spa", "Spanish" },
+        { "fr", "French" },
+        { "fra", "French" },
+        { "it", "Italian" },
+        { "ita", "Italian" },
+        { "pt", "Portuguese" },
+        { "por", "Portuguese" },
+        { "ru", "Russian" },
+        { "rus", "Russian" },
+        { "tr", "Turkish" },
+        { "tur", "Turkish" },
+        { "nl", "Dutch" },
+        { "nld", "Dutch" },
+        { "pl", "Polish" },
+        { "pol", "Polish" },
+        { "ja", "Japanese" },
+        { "jpn", "Japanese" },
+        { "zh", "Chinese" },
+        { "zho", "Chinese" },
+        { "hi", "Hindi" },
+        { "hin", "Hindi" },
+        { "ko", "Korean" },
+        { "kor", "Korean" },
+        { "sv", "Swedish" },
+        { "swe", "Swedish" }
+    };
+
+    private bool isInstalled;
+    private bool isDownloading;
+
     public string Id { get; init; } = "";
     public string Name { get; init; } = "";
     public string Author { get; init; } = "";
@@ -48,7 +109,82 @@ public sealed record HfModelInfo
     public string DownloadsText { get; init; } = "";
     public string LikesText { get; init; } = "";
     public string LanguagesText { get; init; } = "";
-    public bool IsInstalled { get; set; }
+    public IReadOnlyList<string> LanguageCodes { get; init; } = [];
+
+    public bool SupportsLanguage(string language)
+    {
+        if (string.IsNullOrWhiteSpace(language) || language == "All Languages") return true;
+
+        var code = LanguageToCode.TryGetValue(language, out var c) ? c : language.ToLowerInvariant();
+        var langLower = language.ToLowerInvariant();
+
+        // Specific known model language capabilities
+        if (Id.Equals("hexgrad/Kokoro-82M", StringComparison.OrdinalIgnoreCase))
+        {
+            return code is "en" or "es" or "fr" or "it" or "pt" or "ja" or "zh" or "hi";
+        }
+
+        if (Id.Equals("coqui/XTTS-v2", StringComparison.OrdinalIgnoreCase))
+        {
+            return code is "en" or "es" or "fr" or "de" or "it" or "pt" or "pl" or "tr" or "ru" or "nl" or "cs" or "ar" or "zh" or "ja" or "hu" or "ko" or "hi";
+        }
+
+        if (Id.Contains("mms-tts-", StringComparison.OrdinalIgnoreCase))
+        {
+            return Id.EndsWith($"-{code}", StringComparison.OrdinalIgnoreCase) ||
+                   (code == "ar" && Id.EndsWith("-ara", StringComparison.OrdinalIgnoreCase)) ||
+                   (code == "de" && Id.EndsWith("-deu", StringComparison.OrdinalIgnoreCase)) ||
+                   (code == "ru" && Id.EndsWith("-rus", StringComparison.OrdinalIgnoreCase));
+        }
+
+        // Check if explicit tag matches
+        if (LanguageCodes.Any(t => t.Equals(code, StringComparison.OrdinalIgnoreCase) || 
+                                   t.Equals(langLower, StringComparison.OrdinalIgnoreCase) ||
+                                   (code == "ar" && t.Equals("ara", StringComparison.OrdinalIgnoreCase)) ||
+                                   (code == "de" && t.Equals("deu", StringComparison.OrdinalIgnoreCase)) ||
+                                   (code == "ru" && t.Equals("rus", StringComparison.OrdinalIgnoreCase))))
+        {
+            return true;
+        }
+
+        return LanguagesText.ToLowerInvariant().Contains(langLower);
+    }
+
+    public bool IsInstalled
+    {
+        get => isInstalled;
+        set
+        {
+            if (isInstalled != value)
+            {
+                isInstalled = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsInstalled)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(InstallButtonVisibility)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(InstalledBadgeVisibility)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DownloadButtonEnabled)));
+            }
+        }
+    }
+
+    public bool IsDownloading
+    {
+        get => isDownloading;
+        set
+        {
+            if (isDownloading != value)
+            {
+                isDownloading = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsDownloading)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DownloadButtonEnabled)));
+            }
+        }
+    }
+
+    public bool DownloadButtonEnabled => !isDownloading && !isInstalled;
+    public Visibility InstallButtonVisibility => isInstalled ? Visibility.Collapsed : Visibility.Visible;
+    public Visibility InstalledBadgeVisibility => isInstalled ? Visibility.Visible : Visibility.Collapsed;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
 }
 
 public sealed record ProjectRecord
@@ -113,3 +249,121 @@ public sealed record ModelDownloadProgress(
     string Speed,
     string Eta,
     string SizeText);
+
+public sealed class InstalledModelItem : INotifyPropertyChanged
+{
+    private bool isInstalled;
+    private bool isDownloading;
+    private int downloadProgress;
+    private string downloadSpeed = "";
+    private string downloadEta = "";
+    private string downloadSize = "";
+    private string downloadStatus = "";
+
+    public string Id { get; init; } = "";
+    public string Name { get; init; } = "";
+    public string Description { get; init; } = "";
+    public string SupportedLanguages { get; init; } = "";
+    public bool IsBundled { get; init; }
+
+    public bool IsInstalled
+    {
+        get => isInstalled;
+        set
+        {
+            if (isInstalled != value)
+            {
+                isInstalled = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsInstalled)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(InstalledBadgeVisibility)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DownloadButtonVisibility)));
+            }
+        }
+    }
+
+    public bool IsDownloading
+    {
+        get => isDownloading;
+        set
+        {
+            if (isDownloading != value)
+            {
+                isDownloading = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsDownloading)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DownloadingVisibility)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DownloadButtonVisibility)));
+            }
+        }
+    }
+
+    public int DownloadProgress
+    {
+        get => downloadProgress;
+        set
+        {
+            if (downloadProgress != value)
+            {
+                downloadProgress = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DownloadProgress)));
+            }
+        }
+    }
+
+    public string DownloadSpeed
+    {
+        get => downloadSpeed;
+        set
+        {
+            if (downloadSpeed != value)
+            {
+                downloadSpeed = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DownloadSpeed)));
+            }
+        }
+    }
+
+    public string DownloadEta
+    {
+        get => downloadEta;
+        set
+        {
+            if (downloadEta != value)
+            {
+                downloadEta = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DownloadEta)));
+            }
+        }
+    }
+
+    public string DownloadSize
+    {
+        get => downloadSize;
+        set
+        {
+            if (downloadSize != value)
+            {
+                downloadSize = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DownloadSize)));
+            }
+        }
+    }
+
+    public string DownloadStatus
+    {
+        get => downloadStatus;
+        set
+        {
+            if (downloadStatus != value)
+            {
+                downloadStatus = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DownloadStatus)));
+            }
+        }
+    }
+
+    public Visibility InstalledBadgeVisibility => IsInstalled ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility DownloadButtonVisibility => (!IsInstalled && !IsDownloading) ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility DownloadingVisibility => IsDownloading ? Visibility.Visible : Visibility.Collapsed;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+}

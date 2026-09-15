@@ -155,8 +155,7 @@ def build_parser():
     )
     parser.add_argument(
         "--download-model",
-        choices=["xtts-v2"],
-        help="Download on-demand model weights (e.g. xtts-v2).",
+        help="Download on-demand model weights from Hugging Face (e.g. xtts-v2, facebook/mms-tts-ara, etc.).",
     )
     parser.add_argument(
         "--format", choices=["mp3", "wav"], default="mp3", help="Output format."
@@ -204,7 +203,7 @@ def main(argv=None):
     JSON_MODE = args.json
 
     if args.download_model:
-        from atten_backend.downloader import download_xtts_model
+        from atten_backend.downloader import download_hf_model
         log_info(f"Starting download for {args.download_model}...", "⬇️")
 
         def download_progress(payload):
@@ -214,7 +213,7 @@ def main(argv=None):
                 print(f"⏳ {payload.get('status', '')} [{payload.get('percent', 0)}%]")
 
         try:
-            download_xtts_model(download_progress)
+            download_hf_model(args.download_model, download_progress)
             log_success(f"Model {args.download_model} downloaded successfully!", "🎉")
             emit("download_completed", model=args.download_model)
             return 0
