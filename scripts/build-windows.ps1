@@ -20,6 +20,7 @@ $Publish = Join-Path $BuildRoot "publish"
 $ArtifactRoot = Join-Path $Root $Output
 $InstallerScript = Join-Path $Root "packaging/Atten.Windows.iss"
 
+Get-Process Atten.Windows -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Remove-Item -Recurse -Force $BuildRoot, $ArtifactRoot -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $BuildRoot, $ArtifactRoot | Out-Null
 
@@ -84,6 +85,7 @@ try {
     Copy-Item -Recurse (Join-Path $Dist "atten-backend") (Join-Path $Publish "Backend/atten-backend")
     New-Item -ItemType Directory -Force (Join-Path $Publish "Models") | Out-Null
     Copy-Item -Recurse $ModelDestination (Join-Path $Publish "Models/Kokoro-82M")
+    New-Item -ItemType Directory -Force (Join-Path $Publish "resources") | Out-Null
     Copy-Item (Join-Path $Root "resources/voices.json") (Join-Path $Publish "resources/voices.json") -Force
 
     $Licenses = Join-Path $Publish "Licenses"
