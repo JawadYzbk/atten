@@ -677,7 +677,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         else sizeText = "~1.2 GB";
                     }
 
-                    var isInstalled = id.Equals("hexgrad/Kokoro-82M", StringComparison.OrdinalIgnoreCase) ||
+                    var installedIds = InstalledEngines.Where(e => e.IsInstalled).Select(e => e.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    var isInstalled = installedIds.Contains(id) ||
+                                      id.Equals("hexgrad/Kokoro-82M", StringComparison.OrdinalIgnoreCase) ||
                                       (id.Equals("coqui/XTTS-v2", StringComparison.OrdinalIgnoreCase) && IsXttsInstalled) ||
                                       id.Equals("facebook/mms-tts-ara", StringComparison.OrdinalIgnoreCase);
 
@@ -711,7 +713,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
             {
                 PopulateFallbackHfModels();
             }
-            UpdateFilteredHfModels();
+            ScanInstalledEngines();
+            UpdateDynamicVoices();
+            UpdateAvailableModels();
+            UpdateAvailableLanguages();
+            UpdateStudioVoices();
+            UpdateFilteredVoices();
+            UpdateHfInstalledStatuses();
             IsFetchingHfModels = false;
 
             var snapshot = HfModels.ToList();
@@ -969,11 +977,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private void UpdateHfInstalledStatuses()
     {
+        var installedIds = InstalledEngines.Where(e => e.IsInstalled).Select(e => e.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var m in HfModels)
         {
-            if (m.Id.Equals("coqui/XTTS-v2", StringComparison.OrdinalIgnoreCase))
+            if (installedIds.Contains(m.Id) || (m.Id.Equals("coqui/XTTS-v2", StringComparison.OrdinalIgnoreCase) && IsXttsInstalled))
             {
-                m.IsInstalled = IsXttsInstalled;
+                m.IsInstalled = true;
             }
         }
         UpdateFilteredHfModels();
@@ -1000,6 +1009,149 @@ public sealed class MainViewModel : INotifyPropertyChanged
             SupportedLanguages = "Arabic, German, Russian, Turkish, Dutch, Polish, and 16+ languages",
             IsInstalled = IsXttsInstalled
         });
+
+        ScanInstalledEngines();
+        UpdateDynamicVoices();
+        UpdateAvailableModels();
+        UpdateAvailableLanguages();
+        UpdateStudioVoices();
+        UpdateFilteredVoices();
+    }
+
+    public void ScanInstalledEngines()
+    {
+        var modelsDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Atten", "Models");
+
+        if (!Directory.Exists(modelsDir)) return;
+
+        foreach (var dir in Directory.GetDirectories(modelsDir))
+        {
+            var folderName = Path.GetFileName(dir);
+            if (folderName.Equals("XTTS-v2", StringComparison.OrdinalIgnoreCase))
+            {
+                var xttsItem = InstalledEngines.FirstOrDefault(e => e.Id.Equals("coqui/XTTS-v2", StringComparison.OrdinalIgnoreCase));
+                if (xttsItem is not null)
+                {
+                    xttsItem.IsInstalled = true;
+                    IsXttsInstalled = true;
+                }
+                continue;
+            }
+
+            if (folderName.Contains("--"))
+            {
+                var modelId = folderName.Replace("--", "/");
+                var existing = InstalledEngines.FirstOrDefault(e => e.Id.Equals(modelId, StringComparison.OrdinalIgnoreCase));
+                if (existing is not null)
+                {
+                    existing.IsInstalled = true;
+                    continue;
+                }
+
+                // Verify directory has non-part files
+                var files = Directory.GetFiles(dir);
+                if (files.Length == 0 || files.All(f => Path.GetFileName(f).StartsWith('.')))
+                {
+                    continue;
+                }
+
+                var parts = modelId.Split('/');
+                var author = parts.Length > 1 ? parts[0] : "";
+                var name = parts.Length > 1 ? parts[1] : modelId;
+
+                var hfMatch = HfModels.FirstOrDefault(m => m.Id.Equals(modelId, StringComparison.OrdinalIgnoreCase));
+                var langText = hfMatch?.LanguagesText ?? (name.Contains("ara", StringComparison.OrdinalIgnoreCase) ? "Arabic" : "Multilingual");
+
+                InstalledEngines.Add(new InstalledModelItem
+                {
+                    Id = modelId,
+                    Name = name,
+                    Description = $"{modelId} • {langText}",
+                    SupportedLanguages = langText,
+                    IsInstalled = true,
+                    IsBundled = false
+                });
+
+                if (hfMatch is not null)
+                {
+                    hfMatch.IsInstalled = true;
+                    hfMatch.IsDownloading = false;
+                }
+            }
+        }
+    }
+
+    public void UpdateDynamicVoices()
+    {
+        var dynList = new List<Voice>();
+        foreach (var engine in InstalledEngines.Where(e => e.IsInstalled && !e.IsBundled && !e.Id.Equals("coqui/XTTS-v2", StringComparison.OrdinalIgnoreCase)))
+        {
+            var hfMatch = HfModels.FirstOrDefault(m => m.Id.Equals(engine.Id, StringComparison.OrdinalIgnoreCase));
+            var langs = hfMatch?.LanguagesText ?? engine.SupportedLanguages;
+            var primaryLang = "English";
+            if (!string.IsNullOrWhiteSpace(langs))
+            {
+                var split = langs.Split([',', '•'], StringSplitOptions.RemoveEmptyEntries);
+                if (split.Length > 0) primaryLang = split[0].Trim();
+            }
+
+            var voiceId = $"dyn_{engine.Name.ToLowerInvariant().Replace(' ', '_').Replace('-', '_')}";
+            dynList.Add(new Voice(
+                voiceId,
+                $"{engine.Name} (Default Voice)",
+                primaryLang,
+                "en",
+                "Neutral",
+                ["Neural", "Local", "Community"],
+                "neural",
+                engine.Name));
+        }
+
+        VoiceCatalog.SetDynamicVoices(dynList);
+    }
+
+    public void UpdateAvailableModels()
+    {
+        var current = SelectedModel;
+        var models = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "All Models",
+            "Kokoro-82M",
+            "XTTS-v2 & Multilingual Neural"
+        };
+
+        foreach (var engine in InstalledEngines.Where(e => e.IsInstalled))
+        {
+            if (!string.IsNullOrWhiteSpace(engine.Name))
+            {
+                models.Add(engine.Name);
+            }
+        }
+
+        foreach (var hf in HfModels.Where(m => m.IsInstalled))
+        {
+            if (!string.IsNullOrWhiteSpace(hf.Name))
+            {
+                models.Add(hf.Name);
+            }
+        }
+
+        AvailableModels.Clear();
+        foreach (var m in models)
+        {
+            AvailableModels.Add(m);
+        }
+
+        if (AvailableModels.Contains(current))
+        {
+            SelectedModel = current;
+        }
+        else
+        {
+            SelectedModel = "All Models";
+        }
     }
 
     private readonly HashSet<string> pendingDownloadModelIds = [];
@@ -1098,6 +1250,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
             DownloadEta = "";
             DownloadStatus = $"{modelId} downloaded successfully!";
             Status = $"{modelId} model ready.";
+
+            ScanInstalledEngines();
+            UpdateDynamicVoices();
+            UpdateAvailableModels();
+            UpdateAvailableLanguages();
+            UpdateStudioVoices();
+            UpdateFilteredVoices();
             UpdateHfInstalledStatuses();
         }
         catch (OperationCanceledException)

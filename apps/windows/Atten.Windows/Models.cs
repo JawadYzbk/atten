@@ -22,14 +22,18 @@ public sealed record Voice(
     string Id,
     string Name,
     string Language,
-    [property: JsonPropertyName("language_code")] string LanguageCode,
-    string Gender,
-    IReadOnlyList<string> Traits,
-    string Quality)
+    [property: JsonPropertyName("language_code")] string LanguageCode = "en",
+    string Gender = "Neutral",
+    IReadOnlyList<string>? Traits = null,
+    string Quality = "neural",
+    string EngineName = "")
 {
-    public string ModelEngine => Id.StartsWith("ar_") || Id.StartsWith("de_") || Id.StartsWith("ru_") || Id.StartsWith("tr_") || Id.StartsWith("nl_") || Id.StartsWith("pl_") || Id.StartsWith("xtts_")
-        ? "XTTS-v2 & Multilingual Neural"
-        : "Kokoro-82M";
+    public IReadOnlyList<string> Traits { get; init; } = Traits ?? [];
+    public string ModelEngine => !string.IsNullOrEmpty(EngineName)
+        ? EngineName
+        : (Id.StartsWith("ar_") || Id.StartsWith("de_") || Id.StartsWith("ru_") || Id.StartsWith("tr_") || Id.StartsWith("nl_") || Id.StartsWith("pl_") || Id.StartsWith("xtts_")
+            ? "XTTS-v2 & Multilingual Neural"
+            : "Kokoro-82M");
 
     public string ShortName => Name.Contains("(") ? Name.Split('(')[0].Trim() : Name;
     public string DisplayTitle => $"{Name} • {Gender} ({Quality})";
