@@ -72,6 +72,9 @@ public sealed record BackendInfo
     [JsonPropertyName("model_root_valid")]
     public bool ModelRootValid { get; init; }
 
+    [JsonPropertyName("xtts_installed")]
+    public bool XttsInstalled { get; init; }
+
     [JsonPropertyName("voice_count")]
     public int VoiceCount { get; init; }
 }

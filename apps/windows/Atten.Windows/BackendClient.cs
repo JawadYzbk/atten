@@ -93,6 +93,63 @@ public sealed class BackendClient
         }
     }
 
+    public async Task DownloadModelAsync(
+        string modelId,
+        IProgress<(int Percent, string Status)> progress,
+        CancellationToken cancellationToken)
+    {
+        var command = LocateCommand();
+        using var process = new Process();
+        process.StartInfo.FileName = command.Executable;
+        process.StartInfo.WorkingDirectory = command.WorkingDirectory ?? AppContext.BaseDirectory;
+        process.StartInfo.RedirectStandardOutput = true;
+        process.StartInfo.RedirectStandardError = true;
+        process.StartInfo.UseShellExecute = false;
+        process.StartInfo.CreateNoWindow = true;
+
+        foreach (var arg in command.Arguments.Concat(["--download-model", modelId, "--json"]))
+        {
+            process.StartInfo.ArgumentList.Add(arg);
+        }
+
+        process.Start();
+
+        var readerTask = Task.Run(async () =>
+        {
+            while (!process.StandardOutput.EndOfStream)
+            {
+                var line = await process.StandardOutput.ReadLineAsync(cancellationToken);
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                try
+                {
+                    using var document = JsonDocument.Parse(line);
+                    var root = document.RootElement;
+                    if (root.TryGetProperty("event", out var eventElem))
+                    {
+                        var eventType = eventElem.GetString();
+                        if (eventType == "download_progress")
+                        {
+                            var percent = root.TryGetProperty("percent", out var p) ? p.GetInt32() : 0;
+                            var status = root.TryGetProperty("status", out var s) ? s.GetString() ?? "" : "";
+                            progress.Report((percent, status));
+                        }
+                    }
+                }
+                catch { }
+            }
+        }, cancellationToken);
+
+        var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+        await process.WaitForExitAsync(cancellationToken);
+        await readerTask;
+        var error = await errorTask;
+
+        if (process.ExitCode != 0)
+        {
+            throw new InvalidOperationException(string.IsNullOrWhiteSpace(error) ? "Model download failed." : error);
+        }
+    }
+
     private static BackendCommand LocateCommand()
     {
         var packaged = Path.Combine(

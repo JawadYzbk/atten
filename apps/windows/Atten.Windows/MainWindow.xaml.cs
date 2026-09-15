@@ -72,6 +72,32 @@ public sealed partial class MainWindow : Window
         });
     }
 
+    private async void OnDownloadXttsClicked(object sender, RoutedEventArgs args)
+    {
+        DownloadXttsButton.IsEnabled = false;
+        XttsProgressBar.Visibility = Visibility.Visible;
+        try
+        {
+            await model.DownloadXttsModelAsync();
+            if (model.IsXttsInstalled)
+            {
+                DownloadXttsButton.Content = "Installed";
+                DownloadXttsButton.IsEnabled = false;
+            }
+            else
+            {
+                DownloadXttsButton.IsEnabled = true;
+            }
+        }
+        finally
+        {
+            if (!model.IsXttsInstalled)
+            {
+                DownloadXttsButton.IsEnabled = true;
+            }
+        }
+    }
+
     private void PlayCurrentOutput()
     {
         if (string.IsNullOrWhiteSpace(model.CurrentAudioPath) || !File.Exists(model.CurrentAudioPath))

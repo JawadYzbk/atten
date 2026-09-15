@@ -35,5 +35,9 @@
   {"id":"im_nicola","name":"Nicola","language":"Italian","language_code":"i","gender":"Male","traits":["steady","Italian"],"quality":"C"},
   {"id":"pf_dora","name":"Dora","language":"Portuguese (Brazil)","language_code":"p","gender":"Female","traits":["Brazilian"],"quality":"Unrated"},
   {"id":"pm_alex","name":"Alex","language":"Portuguese (Brazil)","language_code":"p","gender":"Male","traits":["Brazilian"],"quality":"Unrated"},
-  {"id":"pm_santa","name":"Santa","language":"Portuguese (Brazil)","language_code":"p","gender":"Male","traits":["character","Brazilian"],"quality":"Unrated"}
+  {"id":"pm_santa","name":"Santa","language":"Portuguese (Brazil)","language_code":"p","gender":"Male","traits":["character","Brazilian"],"quality":"Unrated"},
+  {"id":"ar_mariam","name":"Mariam (مريم)","language":"Arabic","language_code":"ar","gender":"Female","traits":["natural","Arabic","XTTS-v2"],"quality":"A"},
+  {"id":"ar_omar","name":"Omar (عمر)","language":"Arabic","language_code":"ar","gender":"Male","traits":["clear","Arabic","XTTS-v2"],"quality":"A-"},
+  {"id":"ar_layla","name":"Layla (ليلى)","language":"Arabic","language_code":"ar","gender":"Female","traits":["expressive","Arabic","XTTS-v2"],"quality":"B+"},
+  {"id":"ar_zayd","name":"Zayd (زيد)","language":"Arabic","language_code":"ar","gender":"Male","traits":["deep","Arabic","XTTS-v2"],"quality":"B+"}
 ]

@@ -20,6 +20,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string? currentAudioPath;
     private bool isGenerating;
     private BackendInfo? backendInfo;
+    private bool isXttsInstalled;
+    private bool isDownloadingModel;
+    private int downloadProgress;
+    private string downloadStatus = "";
+    private CancellationTokenSource? downloadCts;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -27,6 +32,30 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public IReadOnlyList<Voice> Voices => VoiceCatalog.All;
     public IReadOnlyList<AudioFormat> Formats { get; } = Enum.GetValues<AudioFormat>();
     public IReadOnlyList<DeviceMode> DeviceModes { get; } = Enum.GetValues<DeviceMode>();
+
+    public bool IsXttsInstalled
+    {
+        get => isXttsInstalled;
+        set => Set(ref isXttsInstalled, value);
+    }
+
+    public bool IsDownloadingModel
+    {
+        get => isDownloadingModel;
+        set => Set(ref isDownloadingModel, value);
+    }
+
+    public int DownloadProgress
+    {
+        get => downloadProgress;
+        set => Set(ref downloadProgress, value);
+    }
+
+    public string DownloadStatus
+    {
+        get => downloadStatus;
+        set => Set(ref downloadStatus, value);
+    }
 
     public string DraftTitle
     {
@@ -91,7 +120,56 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public BackendInfo? BackendInfo
     {
         get => backendInfo;
-        set => Set(ref backendInfo, value);
+        set
+        {
+            Set(ref backendInfo, value);
+            if (value is not null)
+            {
+                IsXttsInstalled = value.XttsInstalled;
+            }
+        }
+    }
+
+    public async Task DownloadXttsModelAsync()
+    {
+        if (IsDownloadingModel) return;
+
+        IsDownloadingModel = true;
+        DownloadProgress = 0;
+        DownloadStatus = "Connecting to Hugging Face...";
+        downloadCts?.Cancel();
+        downloadCts = new CancellationTokenSource();
+
+        try
+        {
+            var progress = new Progress<(int Percent, string Status)>(update =>
+            {
+                DownloadProgress = update.Percent;
+                DownloadStatus = update.Status;
+            });
+
+            await backend.DownloadModelAsync("xtts-v2", progress, downloadCts.Token);
+            IsXttsInstalled = true;
+            DownloadStatus = "XTTS-v2 downloaded successfully!";
+            Status = "XTTS-v2 (Arabic & Multilingual) ready.";
+        }
+        catch (OperationCanceledException)
+        {
+            DownloadStatus = "Download cancelled.";
+        }
+        catch (Exception ex)
+        {
+            DownloadStatus = $"Download failed: {ex.Message}";
+        }
+        finally
+        {
+            IsDownloadingModel = false;
+        }
+    }
+
+    public void CancelModelDownload()
+    {
+        downloadCts?.Cancel();
     }
 
     public async Task StartAsync()

@@ -122,11 +122,67 @@
                     <TextBlock Text="{Binding OutputDirectory}" TextWrapping="Wrap" />
                 </StackPanel>
 
-                <StackPanel x:Name="SettingsPanel" Grid.Row="1" Spacing="12" Visibility="Collapsed">
-                    <TextBlock Text="Settings" Style="{StaticResource TitleTextBlockStyle}" />
-                    <TextBox Header="Export folder" Text="{Binding OutputDirectory, Mode=TwoWay}" />
-                    <TextBlock Text="Kokoro runs locally. No account, cloud API key, or Windows credential store is required." TextWrapping="Wrap" />
-                </StackPanel>
+                <ScrollViewer x:Name="SettingsPanel" Grid.Row="1" Visibility="Collapsed">
+                    <StackPanel Spacing="18" MaxWidth="680" HorizontalAlignment="Left">
+                        <TextBlock Text="Settings" Style="{StaticResource TitleTextBlockStyle}" />
+                        
+                        <TextBox Header="Export folder" Text="{Binding OutputDirectory, Mode=TwoWay}" />
+
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="16">
+                            <StackPanel Spacing="12">
+                                <TextBlock Text="Speech Engines &amp; Models" FontWeight="SemiBold" FontSize="16" />
+                                
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="Kokoro-82M (Default)" FontWeight="SemiBold" />
+                                        <TextBlock Text="Bundled offline model (English, Spanish, French, Italian, Portuguese)" Opacity="0.7" FontSize="12" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="Installed" VerticalAlignment="Center" Foreground="{ThemeResource SystemAccentColor}" FontWeight="SemiBold" />
+                                </Grid>
+
+                                <Rectangle Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="XTTS-v2 (Arabic &amp; Multilingual)" FontWeight="SemiBold" />
+                                        <TextBlock Text="High-quality neural model with Arabic (العربية) and 16+ languages (~1.8 GB)" Opacity="0.7" FontSize="12" />
+                                    </StackPanel>
+                                    <Button x:Name="DownloadXttsButton"
+                                            Grid.Column="1"
+                                            Content="Download Model"
+                                            Click="OnDownloadXttsClicked"
+                                            VerticalAlignment="Center" />
+                                </Grid>
+
+                                <ProgressBar x:Name="XttsProgressBar"
+                                             Value="{Binding DownloadProgress}"
+                                             Maximum="100"
+                                             MinHeight="8"
+                                             Visibility="Collapsed" />
+
+                                <TextBlock x:Name="XttsProgressLabel"
+                                           Text="{Binding DownloadStatus}"
+                                           FontSize="12"
+                                           Opacity="0.8"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="All models and speech synthesis run 100% locally. No account or cloud API key is required." Opacity="0.7" FontSize="12" TextWrapping="Wrap" />
+                    </StackPanel>
+                </ScrollViewer>
 
                 <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8">
                     <Button Content="Play Output" Click="OnPlayClicked" />
