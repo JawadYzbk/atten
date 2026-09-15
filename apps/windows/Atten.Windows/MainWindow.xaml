@@ -18,7 +18,7 @@
                 <NavigationViewItem Content="Settings" Tag="Settings" />
             </NavigationView.MenuItems>
 
-            <Grid Padding="28" RowSpacing="18">
+            <Grid Padding="28" RowSpacing="16">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
@@ -32,10 +32,11 @@
                                  MinHeight="4" />
                 </StackPanel>
 
+                <!-- Studio Panel -->
                 <Grid x:Name="StudioPanel" Grid.Row="1" ColumnSpacing="20">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="320" />
+                        <ColumnDefinition Width="340" />
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Spacing="12">
@@ -51,42 +52,62 @@
                                  PlaceholderText="Start writing or paste text here in any language (English, Arabic, Spanish, French, German, Japanese, etc.)..." />
                     </StackPanel>
 
-                    <StackPanel Grid.Column="1" Spacing="16">
-                        <ComboBox Header="Voice"
-                                  ItemsSource="{Binding Voices}"
-                                  DisplayMemberPath="Name"
-                                  SelectedValuePath="Id"
-                                  SelectedValue="{Binding SelectedVoiceID, Mode=TwoWay}"
-                                  HorizontalAlignment="Stretch" />
-                        <Slider Header="Speed"
-                                Minimum="0.5"
-                                Maximum="2"
-                                StepFrequency="0.05"
-                                Value="{Binding Speed, Mode=TwoWay}" />
-                        <ComboBox Header="Format"
-                                  ItemsSource="{Binding Formats}"
-                                  SelectedItem="{Binding Format, Mode=TwoWay}"
-                                  HorizontalAlignment="Stretch" />
-                        <ComboBox Header="Acceleration"
-                                  ItemsSource="{Binding DeviceModes}"
-                                  SelectedItem="{Binding DeviceMode, Mode=TwoWay}"
-                                  HorizontalAlignment="Stretch" />
-                        <Button x:Name="GenerateButton"
-                                Content="Generate Speech"
-                                Click="OnGenerateClicked"
-                                HorizontalAlignment="Stretch" />
-                        <Button Content="Cancel"
-                                Click="OnCancelClicked"
-                                HorizontalAlignment="Stretch" />
-                    </StackPanel>
+                    <ScrollViewer Grid.Column="1">
+                        <StackPanel Spacing="14" Padding="0,0,8,0">
+                            <ComboBox Header="Model / Engine"
+                                      ItemsSource="{Binding AvailableModels}"
+                                      SelectedItem="{Binding SelectedModel, Mode=TwoWay}"
+                                      HorizontalAlignment="Stretch" />
+
+                            <ComboBox Header="Language"
+                                      ItemsSource="{Binding AvailableLanguages}"
+                                      SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}"
+                                      HorizontalAlignment="Stretch" />
+
+                            <ComboBox Header="Voice"
+                                      ItemsSource="{Binding StudioVoices}"
+                                      DisplayMemberPath="Name"
+                                      SelectedValuePath="Id"
+                                      SelectedValue="{Binding SelectedVoiceID, Mode=TwoWay}"
+                                      HorizontalAlignment="Stretch" />
+
+                            <Slider Header="Speed"
+                                    Minimum="0.5"
+                                    Maximum="2"
+                                    StepFrequency="0.05"
+                                    Value="{Binding Speed, Mode=TwoWay}" />
+
+                            <ComboBox Header="Format"
+                                      ItemsSource="{Binding Formats}"
+                                      SelectedItem="{Binding Format, Mode=TwoWay}"
+                                      HorizontalAlignment="Stretch" />
+
+                            <ComboBox Header="Acceleration"
+                                      ItemsSource="{Binding DeviceModes}"
+                                      SelectedItem="{Binding DeviceMode, Mode=TwoWay}"
+                                      HorizontalAlignment="Stretch" />
+
+                            <Button x:Name="GenerateButton"
+                                    Content="Generate Speech"
+                                    Click="OnGenerateClicked"
+                                    HorizontalAlignment="Stretch"
+                                    Margin="0,6,0,0" />
+
+                            <Button Content="Cancel"
+                                    Click="OnCancelClicked"
+                                    HorizontalAlignment="Stretch" />
+                        </StackPanel>
+                    </ScrollViewer>
                 </Grid>
 
+                <!-- Playground Panel -->
                 <StackPanel x:Name="PlaygroundPanel" Grid.Row="1" Spacing="12" Visibility="Collapsed">
                     <TextBlock Text="Playground" Style="{StaticResource TitleTextBlockStyle}" />
                     <TextBlock Text="Explore voices, text-to-speech experimentation, and instant previews across all installed models." TextWrapping="Wrap" />
                 </StackPanel>
 
-                <Grid x:Name="VoicesPanel" Grid.Row="1" RowSpacing="12" Visibility="Collapsed">
+                <!-- Voices Panel -->
+                <Grid x:Name="VoicesPanel" Grid.Row="1" RowSpacing="14" Visibility="Collapsed">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -96,19 +117,46 @@
                     <TextBox Grid.Row="1"
                              Header="Filter voices"
                              Text="{Binding VoiceSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             PlaceholderText="Search by name, language (e.g. Arabic, German), trait, or gender..." />
-                    <ListView Grid.Row="2" ItemsSource="{Binding FilteredVoices}" SelectionMode="None">
+                             PlaceholderText="Search by voice name, language (e.g. Arabic, German), engine, or trait..." />
+                    <ListView Grid.Row="2" ItemsSource="{Binding GroupedVoices}" SelectionMode="None">
                         <ListView.ItemTemplate>
-                            <DataTemplate x:DataType="local:Voice">
-                                <StackPanel Padding="0,8" Spacing="2">
-                                    <TextBlock Text="{x:Bind Name}" FontWeight="SemiBold" FontSize="14" />
-                                    <TextBlock Text="{x:Bind Language}" Opacity="0.8" FontSize="12" />
+                            <DataTemplate x:DataType="local:VoiceGroup">
+                                <StackPanel Spacing="6" Margin="0,4,0,16">
+                                    <Border Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="6"
+                                            Padding="12,6">
+                                        <TextBlock Text="{x:Bind Header}" FontWeight="Bold" FontSize="14" Foreground="{ThemeResource SystemAccentColor}" />
+                                    </Border>
+                                    <ItemsControl ItemsSource="{x:Bind Voices}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="local:Voice">
+                                                <Grid Padding="12,6" ColumnSpacing="12" BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Spacing="2">
+                                                        <TextBlock Text="{x:Bind Name}" FontWeight="SemiBold" FontSize="13" />
+                                                        <TextBlock Text="{x:Bind Language}" Opacity="0.7" FontSize="11" />
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="1" Text="{x:Bind Gender}" Opacity="0.8" VerticalAlignment="Center" Margin="0,0,12,0" FontSize="12" />
+                                                    <Border Grid.Column="2" Background="{ThemeResource AccentFillColorTertiaryBrush}" CornerRadius="4" Padding="6,2" VerticalAlignment="Center">
+                                                        <TextBlock Text="{x:Bind Quality}" FontSize="11" FontWeight="SemiBold" />
+                                                    </Border>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
                                 </StackPanel>
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>
                 </Grid>
 
+                <!-- Projects Panel -->
                 <Grid x:Name="ProjectsPanel" Grid.Row="1" RowSpacing="12" Visibility="Collapsed">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -127,17 +175,20 @@
                     </ListView>
                 </Grid>
 
+                <!-- Exports Panel -->
                 <StackPanel x:Name="ExportsPanel" Grid.Row="1" Spacing="12" Visibility="Collapsed">
                     <TextBlock Text="Exports" Style="{StaticResource TitleTextBlockStyle}" />
                     <TextBlock Text="{Binding OutputDirectory}" TextWrapping="Wrap" />
                 </StackPanel>
 
+                <!-- Settings & Hugging Face Discovery Panel -->
                 <ScrollViewer x:Name="SettingsPanel" Grid.Row="1" Visibility="Collapsed">
-                    <StackPanel Spacing="18" MaxWidth="680" HorizontalAlignment="Left">
-                        <TextBlock Text="Settings" Style="{StaticResource TitleTextBlockStyle}" />
+                    <StackPanel Spacing="18" MaxWidth="760" HorizontalAlignment="Left">
+                        <TextBlock Text="Settings &amp; Speech Models" Style="{StaticResource TitleTextBlockStyle}" />
                         
                         <TextBox Header="Export folder" Text="{Binding OutputDirectory, Mode=TwoWay}" />
 
+                        <!-- Local Models Section -->
                         <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1"
@@ -211,14 +262,137 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- Hugging Face Model Discovery Section -->
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="16">
+                            <StackPanel Spacing="14">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="Discover TTS Models from Hugging Face" FontWeight="SemiBold" FontSize="16" />
+                                        <TextBlock Text="Popular community and neural TTS architectures, ratings, and language tags." Opacity="0.7" FontSize="12" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Content="Refresh" Click="OnRefreshHfModelsClicked" VerticalAlignment="Center" />
+                                </Grid>
+
+                                <ItemsControl ItemsSource="{Binding HfModels}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="local:HfModelInfo">
+                                            <Border Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="6"
+                                                    Padding="12,10"
+                                                    Margin="0,0,0,8">
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <StackPanel Spacing="4">
+                                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                                            <TextBlock Text="{x:Bind Name}" FontWeight="Bold" FontSize="14" />
+                                                            <TextBlock Text="{x:Bind Author}" Opacity="0.6" FontSize="12" VerticalAlignment="Center" />
+                                                        </StackPanel>
+
+                                                        <StackPanel Orientation="Horizontal" Spacing="12">
+                                                            <TextBlock Text="{x:Bind DownloadsText}" Opacity="0.8" FontSize="12" />
+                                                            <TextBlock Text="•" Opacity="0.4" FontSize="12" />
+                                                            <TextBlock Text="{x:Bind LikesText}" Opacity="0.8" FontSize="12" />
+                                                            <TextBlock Text="⭐" FontSize="10" VerticalAlignment="Center" />
+                                                        </StackPanel>
+
+                                                        <TextBlock Text="{x:Bind LanguagesText}" Opacity="0.7" FontSize="11" TextWrapping="Wrap" />
+                                                    </StackPanel>
+
+                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                        <TextBlock Text="Installed"
+                                                                   Visibility="{x:Bind IsInstalled}"
+                                                                   Foreground="{ThemeResource SystemAccentColor}"
+                                                                   FontWeight="SemiBold"
+                                                                   FontSize="12" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
                         <TextBlock Text="All models and speech synthesis run 100% locally. No cloud subscription or API key is required." Opacity="0.7" FontSize="12" TextWrapping="Wrap" />
                     </StackPanel>
                 </ScrollViewer>
 
-                <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8">
-                    <Button Content="Play Output" Click="OnPlayClicked" />
-                    <Button Content="Reveal Output" Click="OnRevealClicked" />
-                </StackPanel>
+                <!-- Interactive Media Player Bar (Bottom) -->
+                <Border Grid.Row="2"
+                        Background="{ThemeResource AcrylicBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="10"
+                        Padding="16,10"
+                        Visibility="{Binding PlayerVisibility}">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Play/Pause Button -->
+                        <Button Click="OnTogglePlayPauseClicked"
+                                Style="{StaticResource AccentButtonStyle}"
+                                Padding="12,8"
+                                ToolTipService.ToolTip="Play / Pause">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Glyph="{Binding PlayPauseIcon}" FontSize="12" />
+                                <TextBlock Text="{Binding PlayPauseLabel}" FontWeight="SemiBold" />
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Title and Seek Slider -->
+                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding PlayerTitle}" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" />
+                            <Slider Value="{Binding PlayerPosition, Mode=TwoWay}"
+                                    Maximum="{Binding PlayerDuration}"
+                                    ValueChanged="OnPlayerSeekValueChanged"
+                                    PointerEntered="OnPlayerSeekPointerEntered"
+                                    PointerCaptureLost="OnPlayerSeekPointerCaptureLost"
+                                    Margin="0,-4,0,-4" />
+                        </StackPanel>
+
+                        <!-- Time text -->
+                        <TextBlock Grid.Column="2"
+                                   Text="{Binding PlayerTimeText}"
+                                   VerticalAlignment="Center"
+                                   Opacity="0.8"
+                                   FontFamily="Consolas"
+                                   FontSize="12" />
+
+                        <!-- Reveal Button -->
+                        <Button Grid.Column="3"
+                                Content="Reveal in Folder"
+                                Click="OnRevealClicked"
+                                VerticalAlignment="Center" />
+
+                        <!-- Close Button -->
+                        <Button Grid.Column="4"
+                                Click="OnClosePlayerClicked"
+                                VerticalAlignment="Center"
+                                Padding="8,6">
+                            <FontIcon FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Glyph="&#xE711;" FontSize="10" />
+                        </Button>
+                    </Grid>
+                </Border>
             </Grid>
         </NavigationView>
     </Grid>

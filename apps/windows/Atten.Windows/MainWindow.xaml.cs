@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Windows.Media.Core;
 using Windows.Media.Playback;
 
@@ -9,11 +11,21 @@ public sealed partial class MainWindow : Window
 {
     private readonly MainViewModel model = new();
     private readonly MediaPlayer player = new();
+    private readonly DispatcherTimer playbackTimer = new();
+    private bool isUserSeeking;
 
     public MainWindow()
     {
         InitializeComponent();
         Root.DataContext = model;
+
+        player.PlaybackSession.PlaybackStateChanged += OnPlaybackStateChanged;
+        player.MediaEnded += OnMediaEnded;
+
+        playbackTimer.Interval = TimeSpan.FromMilliseconds(200);
+        playbackTimer.Tick += OnPlaybackTimerTick;
+        playbackTimer.Start();
+
         _ = model.StartAsync();
     }
 
@@ -59,6 +71,54 @@ public sealed partial class MainWindow : Window
         PlayCurrentOutput();
     }
 
+    private void OnTogglePlayPauseClicked(object sender, RoutedEventArgs args)
+    {
+        if (string.IsNullOrWhiteSpace(model.CurrentAudioPath) || !File.Exists(model.CurrentAudioPath))
+        {
+            return;
+        }
+
+        if (player.PlaybackSession.PlaybackState == MediaPlaybackState.Playing)
+        {
+            player.Pause();
+            model.IsPlaying = false;
+        }
+        else
+        {
+            if (player.Source is null)
+            {
+                player.Source = MediaSource.CreateFromUri(new Uri(model.CurrentAudioPath));
+            }
+            player.Play();
+            model.IsPlaying = true;
+        }
+    }
+
+    private void OnPlayerSeekValueChanged(object sender, RangeBaseValueChangedEventArgs args)
+    {
+        if (isUserSeeking && player.PlaybackSession.CanSeek)
+        {
+            player.PlaybackSession.Position = TimeSpan.FromSeconds(args.NewValue);
+        }
+    }
+
+    private void OnPlayerSeekPointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        isUserSeeking = true;
+    }
+
+    private void OnPlayerSeekPointerCaptureLost(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        isUserSeeking = false;
+    }
+
+    private void OnClosePlayerClicked(object sender, RoutedEventArgs args)
+    {
+        player.Pause();
+        model.IsPlaying = false;
+        model.IsPlayerVisible = false;
+    }
+
     private void OnRevealClicked(object sender, RoutedEventArgs args)
     {
         if (string.IsNullOrWhiteSpace(model.CurrentAudioPath) || !File.Exists(model.CurrentAudioPath))
@@ -67,12 +127,56 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        Process.Start(new ProcessStartInfo
         {
             FileName = "explorer.exe",
             Arguments = $"/select,\"{model.CurrentAudioPath}\"",
             UseShellExecute = true
         });
+    }
+
+    private void OnPlaybackStateChanged(MediaPlaybackSession sender, object args)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            model.IsPlaying = sender.PlaybackState == MediaPlaybackState.Playing;
+        });
+    }
+
+    private void OnMediaEnded(MediaPlayer sender, object args)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            model.IsPlaying = false;
+            model.PlayerPosition = 0;
+            model.PlayerTimeText = $"00:00 / {FormatTime(sender.PlaybackSession.NaturalDuration.TotalSeconds)}";
+        });
+    }
+
+    private void OnPlaybackTimerTick(object? sender, object e)
+    {
+        if (player.Source is null) return;
+
+        var session = player.PlaybackSession;
+        var duration = session.NaturalDuration.TotalSeconds;
+        var position = session.Position.TotalSeconds;
+
+        if (duration > 0)
+        {
+            model.PlayerDuration = duration;
+            if (!isUserSeeking)
+            {
+                model.PlayerPosition = position;
+            }
+            model.PlayerTimeText = $"{FormatTime(position)} / {FormatTime(duration)}";
+        }
+    }
+
+    private static string FormatTime(double totalSeconds)
+    {
+        if (double.IsNaN(totalSeconds) || totalSeconds < 0) totalSeconds = 0;
+        var ts = TimeSpan.FromSeconds(totalSeconds);
+        return ts.Hours > 0 ? $"{ts.Hours:D2}:{ts.Minutes:D2}:{ts.Seconds:D2}" : $"{ts.Minutes:D2}:{ts.Seconds:D2}";
     }
 
     private async void OnDownloadXttsClicked(object sender, RoutedEventArgs args)
@@ -128,6 +232,11 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private async void OnRefreshHfModelsClicked(object sender, RoutedEventArgs args)
+    {
+        await model.FetchHfModelsAsync();
+    }
+
     private void PlayCurrentOutput()
     {
         if (string.IsNullOrWhiteSpace(model.CurrentAudioPath) || !File.Exists(model.CurrentAudioPath))
@@ -138,5 +247,7 @@ public sealed partial class MainWindow : Window
 
         player.Source = MediaSource.CreateFromUri(new Uri(model.CurrentAudioPath));
         player.Play();
+        model.IsPlaying = true;
+        model.IsPlayerVisible = true;
     }
 }

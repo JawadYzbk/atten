@@ -1,17 +1,26 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Net.Http;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using Microsoft.UI.Xaml;
 
 namespace Atten.Windows;
 
 public sealed class MainViewModel : INotifyPropertyChanged
 {
+    private static readonly HttpClient httpClient = new()
+    {
+        Timeout = TimeSpan.FromSeconds(15)
+    };
+
     private readonly StorageService storage = new();
     private readonly BackendClient backend = new();
     private CancellationTokenSource? generationCts;
     private string draftTitle = "Untitled narration";
     private string draftText = "";
+    private string selectedModel = "All Models";
+    private string selectedLanguage = "All Languages";
     private string selectedVoiceID = "af_heart";
     private string voiceSearchText = "";
     private double speed = 1.0;
@@ -32,13 +41,114 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string downloadSizeText = "";
     private CancellationTokenSource? downloadCts;
 
+    // Player Bar State
+    private bool isPlayerVisible;
+    private bool isPlaying;
+    private double playerPosition;
+    private double playerDuration;
+    private string playerTimeText = "00:00 / 00:00";
+    private string playerTitle = "";
+
+    // HF Models
+    private bool isFetchingHfModels;
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public ObservableCollection<ProjectRecord> Projects { get; } = [];
     public IReadOnlyList<Voice> Voices => VoiceCatalog.All;
     public ObservableCollection<Voice> FilteredVoices { get; } = [];
+    public ObservableCollection<VoiceGroup> GroupedVoices { get; } = [];
+    public ObservableCollection<string> AvailableModels { get; } = ["All Models", "Kokoro-82M", "XTTS-v2 & Multilingual Neural"];
+    public ObservableCollection<string> AvailableLanguages { get; } = [];
+    public ObservableCollection<Voice> StudioVoices { get; } = [];
+    public ObservableCollection<HfModelInfo> HfModels { get; } = [];
     public IReadOnlyList<AudioFormat> Formats { get; } = Enum.GetValues<AudioFormat>();
     public IReadOnlyList<DeviceMode> DeviceModes { get; } = Enum.GetValues<DeviceMode>();
+
+    public bool IsPlayerVisible
+    {
+        get => isPlayerVisible;
+        set
+        {
+            if (Set(ref isPlayerVisible, value))
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PlayerVisibility)));
+            }
+        }
+    }
+
+    public Visibility PlayerVisibility => isPlayerVisible ? Visibility.Visible : Visibility.Collapsed;
+
+    public bool IsPlaying
+    {
+        get => isPlaying;
+        set
+        {
+            if (Set(ref isPlaying, value))
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PlayPauseIcon)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PlayPauseLabel)));
+            }
+        }
+    }
+
+    public string PlayPauseIcon => isPlaying ? "\uE769" : "\uE768";
+    public string PlayPauseLabel => isPlaying ? "Pause" : "Play";
+
+    public double PlayerPosition
+    {
+        get => playerPosition;
+        set => Set(ref playerPosition, value);
+    }
+
+    public double PlayerDuration
+    {
+        get => playerDuration;
+        set => Set(ref playerDuration, value);
+    }
+
+    public string PlayerTimeText
+    {
+        get => playerTimeText;
+        set => Set(ref playerTimeText, value);
+    }
+
+    public string PlayerTitle
+    {
+        get => playerTitle;
+        set => Set(ref playerTitle, value);
+    }
+
+    public bool IsFetchingHfModels
+    {
+        get => isFetchingHfModels;
+        set => Set(ref isFetchingHfModels, value);
+    }
+
+    public string SelectedModel
+    {
+        get => selectedModel;
+        set
+        {
+            if (Set(ref selectedModel, value))
+            {
+                UpdateAvailableLanguages();
+                UpdateStudioVoices();
+            }
+        }
+    }
+
+    public string SelectedLanguage
+    {
+        get => selectedLanguage;
+        set
+        {
+            if (Set(ref selectedLanguage, value))
+            {
+                UpdateStudioVoices();
+            }
+        }
+    }
 
     public string VoiceSearchText
     {
@@ -55,7 +165,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool IsXttsInstalled
     {
         get => isXttsInstalled;
-        set => Set(ref isXttsInstalled, value);
+        set
+        {
+            if (Set(ref isXttsInstalled, value))
+            {
+                UpdateHfInstalledStatuses();
+            }
+        }
     }
 
     public bool IsDownloadingModel
@@ -181,19 +297,230 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    public void UpdateAvailableLanguages()
+    {
+        var current = SelectedLanguage;
+        AvailableLanguages.Clear();
+        AvailableLanguages.Add("All Languages");
+
+        var query = Voices.AsEnumerable();
+        if (SelectedModel != "All Models")
+        {
+            query = query.Where(v => v.ModelEngine.Contains(SelectedModel, StringComparison.OrdinalIgnoreCase) ||
+                                     SelectedModel.Contains(v.ModelEngine, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var distinctLanguages = query.Select(v => v.Language).Distinct().OrderBy(l => l);
+        foreach (var lang in distinctLanguages)
+        {
+            AvailableLanguages.Add(lang);
+        }
+
+        if (AvailableLanguages.Contains(current))
+        {
+            SelectedLanguage = current;
+        }
+        else
+        {
+            SelectedLanguage = "All Languages";
+        }
+    }
+
+    public void UpdateStudioVoices()
+    {
+        StudioVoices.Clear();
+        var query = Voices.AsEnumerable();
+        if (SelectedModel != "All Models")
+        {
+            query = query.Where(v => v.ModelEngine.Contains(SelectedModel, StringComparison.OrdinalIgnoreCase) ||
+                                     SelectedModel.Contains(v.ModelEngine, StringComparison.OrdinalIgnoreCase));
+        }
+        if (SelectedLanguage != "All Languages" && !string.IsNullOrEmpty(SelectedLanguage))
+        {
+            query = query.Where(v => v.Language.Equals(SelectedLanguage, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var matching = query.ToList();
+        foreach (var v in matching)
+        {
+            StudioVoices.Add(v);
+        }
+
+        if (StudioVoices.Count > 0 && !StudioVoices.Any(v => v.Id == SelectedVoiceID))
+        {
+            SelectedVoiceID = StudioVoices[0].Id;
+        }
+    }
+
     public void UpdateFilteredVoices()
     {
         FilteredVoices.Clear();
+        GroupedVoices.Clear();
         var query = (voiceSearchText ?? "").Trim().ToLowerInvariant();
-        foreach (var v in Voices)
+
+        var matched = Voices.Where(v =>
+            string.IsNullOrEmpty(query) ||
+            v.Name.ToLowerInvariant().Contains(query) ||
+            v.Language.ToLowerInvariant().Contains(query) ||
+            v.Gender.ToLowerInvariant().Contains(query) ||
+            v.ModelEngine.ToLowerInvariant().Contains(query) ||
+            v.Traits.Any(t => t.ToLowerInvariant().Contains(query))).ToList();
+
+        foreach (var v in matched)
         {
-            if (string.IsNullOrEmpty(query) ||
-                v.Name.ToLowerInvariant().Contains(query) ||
-                v.Language.ToLowerInvariant().Contains(query) ||
-                v.Gender.ToLowerInvariant().Contains(query) ||
-                v.Traits.Any(t => t.ToLowerInvariant().Contains(query)))
+            FilteredVoices.Add(v);
+        }
+
+        var groups = matched
+            .GroupBy(v => (v.Language, v.ModelEngine))
+            .OrderBy(g => g.Key.Language)
+            .Select(g => new VoiceGroup(g.Key.Language, g.Key.ModelEngine, g.ToList()));
+
+        foreach (var group in groups)
+        {
+            GroupedVoices.Add(group);
+        }
+    }
+
+    public async Task FetchHfModelsAsync()
+    {
+        if (IsFetchingHfModels) return;
+        IsFetchingHfModels = true;
+
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, "https://huggingface.co/api/models?pipeline_tag=text-to-speech&sort=downloads&direction=-1&limit=25");
+            request.Headers.Add("User-Agent", "Atten/0.2.1");
+
+            var response = await httpClient.SendAsync(request);
+            if (response.IsSuccessStatusCode)
             {
-                FilteredVoices.Add(v);
+                var json = await response.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(json);
+                HfModels.Clear();
+
+                foreach (var item in doc.RootElement.EnumerateArray())
+                {
+                    var id = item.GetProperty("id").GetString() ?? "";
+                    var parts = id.Split('/');
+                    var author = parts.Length > 1 ? parts[0] : "";
+                    var name = parts.Length > 1 ? parts[1] : id;
+                    var downloads = item.TryGetProperty("downloads", out var d) ? d.GetInt32() : 0;
+                    var likes = item.TryGetProperty("likes", out var l) ? l.GetInt32() : 0;
+
+                    var languages = new List<string>();
+                    if (item.TryGetProperty("tags", out var tags))
+                    {
+                        foreach (var tag in tags.EnumerateArray())
+                        {
+                            var t = tag.GetString() ?? "";
+                            if (t.StartsWith("language:"))
+                            {
+                                languages.Add(t.Replace("language:", ""));
+                            }
+                        }
+                    }
+
+                    var langText = languages.Count > 0 ? string.Join(", ", languages.Take(5)) : (id.Contains("ara") ? "Arabic" : "Multilingual");
+
+                    var downloadsText = downloads >= 1_000_000 ? $"{downloads / 1_000_000.0:F1}M downloads" :
+                                        downloads >= 1_000 ? $"{downloads / 1_000.0:F1}K downloads" : $"{downloads} downloads";
+
+                    var likesText = likes >= 1_000 ? $"{likes / 1_000.0:F1}k" : $"{likes}";
+
+                    var isInstalled = id.Equals("hexgrad/Kokoro-82M", StringComparison.OrdinalIgnoreCase) ||
+                                      (id.Equals("coqui/XTTS-v2", StringComparison.OrdinalIgnoreCase) && IsXttsInstalled);
+
+                    HfModels.Add(new HfModelInfo
+                    {
+                        Id = id,
+                        Name = name,
+                        Author = author,
+                        Downloads = downloads,
+                        Likes = likes,
+                        DownloadsText = downloadsText,
+                        LikesText = likesText,
+                        LanguagesText = langText,
+                        IsInstalled = isInstalled
+                    });
+                }
+            }
+        }
+        catch
+        {
+            // If offline, populate default top models
+            PopulateFallbackHfModels();
+        }
+        finally
+        {
+            if (HfModels.Count == 0)
+            {
+                PopulateFallbackHfModels();
+            }
+            IsFetchingHfModels = false;
+        }
+    }
+
+    private void PopulateFallbackHfModels()
+    {
+        HfModels.Clear();
+        HfModels.Add(new HfModelInfo
+        {
+            Id = "hexgrad/Kokoro-82M",
+            Name = "Kokoro-82M",
+            Author = "hexgrad",
+            Downloads = 11500000,
+            Likes = 6900,
+            DownloadsText = "11.5M downloads",
+            LikesText = "6.9k",
+            LanguagesText = "English, Spanish, French, Italian, Portuguese, Japanese, Chinese, Hindi",
+            IsInstalled = true
+        });
+        HfModels.Add(new HfModelInfo
+        {
+            Id = "coqui/XTTS-v2",
+            Name = "XTTS-v2",
+            Author = "coqui",
+            Downloads = 7300000,
+            Likes = 3800,
+            DownloadsText = "7.3M downloads",
+            LikesText = "3.8k",
+            LanguagesText = "Arabic, German, Russian, Turkish, Dutch, Polish, and 16+ languages",
+            IsInstalled = IsXttsInstalled
+        });
+        HfModels.Add(new HfModelInfo
+        {
+            Id = "facebook/mms-tts-ara",
+            Name = "MMS-TTS Arabic",
+            Author = "facebook",
+            Downloads = 1200000,
+            Likes = 1450,
+            DownloadsText = "1.2M downloads",
+            LikesText = "1.5k",
+            LanguagesText = "Arabic (العربية)",
+            IsInstalled = true
+        });
+        HfModels.Add(new HfModelInfo
+        {
+            Id = "SWivid/F5-TTS",
+            Name = "F5-TTS",
+            Author = "SWivid",
+            Downloads = 950000,
+            Likes = 1200,
+            DownloadsText = "950K downloads",
+            LikesText = "1.2k",
+            LanguagesText = "English, Chinese",
+            IsInstalled = false
+        });
+    }
+
+    private void UpdateHfInstalledStatuses()
+    {
+        foreach (var m in HfModels)
+        {
+            if (m.Id.Equals("coqui/XTTS-v2", StringComparison.OrdinalIgnoreCase))
+            {
+                m.IsInstalled = IsXttsInstalled;
             }
         }
     }
@@ -226,6 +553,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             DownloadEta = "";
             DownloadStatus = "XTTS-v2 & multilingual models downloaded successfully!";
             Status = "XTTS-v2 & multilingual models ready.";
+            UpdateHfInstalledStatuses();
         }
         catch (OperationCanceledException)
         {
@@ -254,7 +582,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public async Task StartAsync()
     {
+        UpdateAvailableLanguages();
+        UpdateStudioVoices();
         UpdateFilteredVoices();
+
         storage.Prepare();
         var settings = await storage.LoadSettingsAsync();
         OutputDirectory = settings.OutputDirectory;
@@ -272,12 +603,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
         try
         {
             BackendInfo = await backend.GetInfoAsync(DeviceMode, CancellationToken.None);
-            Status = $"Backend ready on {BackendInfo.SelectedDevice}. ({Voices.Count} voices available)";
+            Status = $"Backend ready on {BackendInfo.SelectedDevice}. ({Voices.Count} voices available across {AvailableLanguages.Count - 1} languages)";
         }
         catch (Exception error)
         {
             Status = error.Message;
         }
+
+        _ = FetchHfModelsAsync();
     }
 
     public async Task SaveSettingsAsync()
@@ -337,6 +670,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             Projects.Insert(0, project);
             await storage.SaveProjectsAsync(Projects);
             CurrentAudioPath = output.Path;
+            PlayerTitle = $"{title}.{Format}";
+            IsPlayerVisible = true;
             Status = $"Speech ready! Saved to {Path.GetFileName(output.Path)}";
         }
         catch (OperationCanceledException)

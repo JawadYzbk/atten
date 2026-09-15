@@ -23,7 +23,33 @@ public sealed record Voice(
     [property: JsonPropertyName("language_code")] string LanguageCode,
     string Gender,
     IReadOnlyList<string> Traits,
-    string Quality);
+    string Quality)
+{
+    public string ModelEngine => Id.StartsWith("ar_") || Id.StartsWith("de_") || Id.StartsWith("ru_") || Id.StartsWith("tr_") || Id.StartsWith("nl_") || Id.StartsWith("pl_") || Id.StartsWith("xtts_")
+        ? "XTTS-v2 & Multilingual Neural"
+        : "Kokoro-82M";
+
+    public string ShortName => Name.Contains("(") ? Name.Split('(')[0].Trim() : Name;
+    public string DisplayTitle => $"{Name} • {Gender} ({Quality})";
+}
+
+public sealed record VoiceGroup(string Language, string ModelEngine, IReadOnlyList<Voice> Voices)
+{
+    public string Header => $"{Language} • {Voices.Count} voices ({ModelEngine})";
+}
+
+public sealed record HfModelInfo
+{
+    public string Id { get; init; } = "";
+    public string Name { get; init; } = "";
+    public string Author { get; init; } = "";
+    public int Downloads { get; init; }
+    public int Likes { get; init; }
+    public string DownloadsText { get; init; } = "";
+    public string LikesText { get; init; } = "";
+    public string LanguagesText { get; init; } = "";
+    public bool IsInstalled { get; set; }
+}
 
 public sealed record ProjectRecord
 {

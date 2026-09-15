@@ -82,9 +82,9 @@ try {
     }
 
     New-Item -ItemType Directory -Force (Join-Path $Publish "Backend") | Out-Null
-    Copy-Item -Recurse (Join-Path $Dist "atten-backend") (Join-Path $Publish "Backend/atten-backend")
+    Copy-Item -Recurse -Force (Join-Path $Dist "atten-backend") (Join-Path $Publish "Backend")
     New-Item -ItemType Directory -Force (Join-Path $Publish "Models") | Out-Null
-    Copy-Item -Recurse $ModelDestination (Join-Path $Publish "Models/Kokoro-82M")
+    Copy-Item -Recurse -Force $ModelDestination (Join-Path $Publish "Models")
     New-Item -ItemType Directory -Force (Join-Path $Publish "resources") | Out-Null
     Copy-Item (Join-Path $Root "resources/voices.json") (Join-Path $Publish "resources/voices.json") -Force
 
