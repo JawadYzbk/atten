@@ -616,7 +616,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
                                     likes >= 1_000 ? $"{likes / 1_000.0:F1}k" : $"{likes}";
 
                     string sizeText = "";
-                    if (item.TryGetProperty("safetensors", out var safetensors) && safetensors.TryGetProperty("total", out var total))
+                    if (ManifestSizeCache.TryGetValue(id, out var cachedSize))
+                    {
+                        sizeText = cachedSize;
+                    }
+                    else if (item.TryGetProperty("safetensors", out var safetensors) && safetensors.TryGetProperty("total", out var total))
                     {
                         var totalBytes = total.GetInt64();
                         if (totalBytes >= 1_073_741_824)
@@ -698,8 +702,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private async Task FetchManifestSizesForModelsAsync(List<HfModelInfo> models)
     {
+        var uncached = models.Where(m => !ManifestSizeCache.ContainsKey(m.Id)).ToList();
+        if (uncached.Count == 0) return;
+
         var sem = new SemaphoreSlim(4);
-        var tasks = models.Select(async m =>
+        bool updatedAny = false;
+        var tasks = uncached.Select(async m =>
         {
             await sem.WaitAsync();
             try
@@ -708,6 +716,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 if (!string.IsNullOrEmpty(exactSize))
                 {
                     m.SizeText = exactSize;
+                    updatedAny = true;
                 }
             }
             catch
@@ -720,6 +729,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
         });
 
         await Task.WhenAll(tasks);
+
+        if (updatedAny)
+        {
+            await storage.SaveModelSizesCacheAsync(ManifestSizeCache);
+        }
     }
 
     public async Task<string> GetExactHfModelSizeAsync(string cleanId)
@@ -1159,6 +1173,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
         UpdateFilteredVoices();
 
         storage.Prepare();
+        var cachedSizes = await storage.LoadModelSizesCacheAsync();
+        foreach (var (k, v) in cachedSizes)
+        {
+            ManifestSizeCache[k] = v;
+        }
+
         var settings = await storage.LoadSettingsAsync();
         OutputDirectory = settings.OutputDirectory;
         Format = settings.DefaultFormat;
