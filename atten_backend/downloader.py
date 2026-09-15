@@ -179,6 +179,11 @@ def download_xtts_model(progress_callback: Optional[Callable[[dict], None]] = No
                 target.unlink()
             temp_target.rename(target)
 
+    try:
+        (xtts_dir / ".atten_complete").write_text("complete\n")
+    except Exception:
+        pass
+
     if progress_callback:
         progress_callback({
             "model": "xtts-v2",
@@ -397,6 +402,12 @@ def download_hf_model(model_id: str, progress_callback: Optional[Callable[[dict]
             if target.exists():
                 target.unlink()
             temp_target.rename(target)
+
+    # Write completion marker
+    try:
+        (dest_dir / ".atten_complete").write_text("complete\n")
+    except Exception:
+        pass
 
     if progress_callback:
         progress_callback({

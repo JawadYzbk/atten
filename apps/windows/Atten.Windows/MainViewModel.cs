@@ -535,6 +535,45 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return (long)num;
     }
 
+    private static bool IsCompatibleModel(string id, IEnumerable<string> tags)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return false;
+
+        // Incompatible / unsupported runtimes
+        if (id.Contains("Qwen", StringComparison.OrdinalIgnoreCase) ||
+            id.Contains("MOSS", StringComparison.OrdinalIgnoreCase) ||
+            id.Contains("magpie", StringComparison.OrdinalIgnoreCase) ||
+            id.Contains("chatterbox", StringComparison.OrdinalIgnoreCase) ||
+            id.Contains("supertonic", StringComparison.OrdinalIgnoreCase) ||
+            id.Contains("audio.cpp", StringComparison.OrdinalIgnoreCase) ||
+            id.Contains("OmniVoice", StringComparison.OrdinalIgnoreCase) ||
+            id.Contains("VoxCPM", StringComparison.OrdinalIgnoreCase) ||
+            id.Contains("Irodori", StringComparison.OrdinalIgnoreCase) ||
+            id.Contains("sanoTTS", StringComparison.OrdinalIgnoreCase) ||
+            id.Contains("kaburi", StringComparison.OrdinalIgnoreCase) ||
+            id.Contains("Breeze-TTS", StringComparison.OrdinalIgnoreCase) ||
+            id.Contains("AuK", StringComparison.OrdinalIgnoreCase) ||
+            id.Contains("ZeroTTS", StringComparison.OrdinalIgnoreCase) ||
+            id.Contains("Kahya", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        // Supported architectures
+        if (id.StartsWith("facebook/mms-tts", StringComparison.OrdinalIgnoreCase) ||
+            id.Contains("mms-tts", StringComparison.OrdinalIgnoreCase) ||
+            id.StartsWith("hexgrad/Kokoro", StringComparison.OrdinalIgnoreCase) ||
+            id.StartsWith("coqui/XTTS", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return tags.Any(t => t.Equals("vits", StringComparison.OrdinalIgnoreCase) ||
+                             t.Equals("mms-tts", StringComparison.OrdinalIgnoreCase) ||
+                             t.Equals("kokoro", StringComparison.OrdinalIgnoreCase) ||
+                             t.Equals("xtts", StringComparison.OrdinalIgnoreCase));
+    }
+
     public async Task FetchHfModelsAsync()
     {
         if (IsFetchingHfModels) return;
@@ -542,46 +581,87 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         try
         {
-            var langParam = "";
+            var sortParam = SelectedHfSort == "Most Stars" ? "likes" : "downloads";
+            var queryUrls = new List<string>();
+
             if (!string.IsNullOrWhiteSpace(SelectedHfLanguage) && SelectedHfLanguage != "All Languages")
             {
                 if (HfModelInfo.LanguageToCode.TryGetValue(SelectedHfLanguage, out var code))
                 {
-                    langParam = $"&filter={code}";
+                    queryUrls.Add($"https://huggingface.co/api/models?pipeline_tag=text-to-speech&search=mms-tts-{code}&sort={sortParam}&direction=-1&limit=25&expand[]=likes&expand[]=downloads&expand[]=safetensors&expand[]=gguf&expand[]=tags&expand[]=cardData");
+                    queryUrls.Add($"https://huggingface.co/api/models?pipeline_tag=text-to-speech&filter={code}&sort={sortParam}&direction=-1&limit=25&expand[]=likes&expand[]=downloads&expand[]=safetensors&expand[]=gguf&expand[]=tags&expand[]=cardData");
                 }
             }
-
-            var sortParam = SelectedHfSort == "Most Stars" ? "likes" : "downloads";
-            var url = $"https://huggingface.co/api/models?pipeline_tag=text-to-speech{langParam}&sort={sortParam}&direction=-1&limit=30&expand[]=likes&expand[]=downloads&expand[]=safetensors&expand[]=gguf&expand[]=tags&expand[]=cardData";
-            using var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Add("User-Agent", "Atten/0.2.1");
-
-            var response = await httpClient.SendAsync(request);
-            if (response.IsSuccessStatusCode)
+            else
             {
-                var json = await response.Content.ReadAsStringAsync();
-                using var doc = JsonDocument.Parse(json);
-                HfModels.Clear();
+                queryUrls.Add($"https://huggingface.co/api/models?pipeline_tag=text-to-speech&search=mms-tts&sort={sortParam}&direction=-1&limit=30&expand[]=likes&expand[]=downloads&expand[]=safetensors&expand[]=gguf&expand[]=tags&expand[]=cardData");
+                queryUrls.Add($"https://huggingface.co/api/models?pipeline_tag=text-to-speech&search=kokoro&sort={sortParam}&direction=-1&limit=15&expand[]=likes&expand[]=downloads&expand[]=safetensors&expand[]=gguf&expand[]=tags&expand[]=cardData");
+                queryUrls.Add($"https://huggingface.co/api/models?pipeline_tag=text-to-speech&other=vits&sort={sortParam}&direction=-1&limit=20&expand[]=likes&expand[]=downloads&expand[]=safetensors&expand[]=gguf&expand[]=tags&expand[]=cardData");
+            }
 
-                foreach (var item in doc.RootElement.EnumerateArray())
+            var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var fetchedList = new List<HfModelInfo>();
+
+            foreach (var url in queryUrls)
+            {
+                try
                 {
-                    var id = item.GetProperty("id").GetString() ?? "";
-                    var parts = id.Split('/');
-                    var author = parts.Length > 1 ? parts[0] : "";
-                    var name = parts.Length > 1 ? parts[1] : id;
-                    var downloads = item.TryGetProperty("downloads", out var d) ? d.GetInt32() : 0;
-                    var likes = item.TryGetProperty("likes", out var l) ? l.GetInt32() : 0;
+                    using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                    request.Headers.Add("User-Agent", "Atten/0.2.1");
+                    var response = await httpClient.SendAsync(request);
+                    if (!response.IsSuccessStatusCode) continue;
 
-                    var langCodes = new List<string>();
-                    var langNames = new List<string>();
+                    var json = await response.Content.ReadAsStringAsync();
+                    using var doc = JsonDocument.Parse(json);
 
-                    if (item.TryGetProperty("cardData", out var cardData) && cardData.TryGetProperty("language", out var cardLang))
+                    foreach (var item in doc.RootElement.EnumerateArray())
                     {
-                        if (cardLang.ValueKind == JsonValueKind.Array)
+                        var id = item.GetProperty("id").GetString() ?? "";
+                        if (string.IsNullOrWhiteSpace(id) || seenIds.Contains(id)) continue;
+
+                        var rawTags = new List<string>();
+                        if (item.TryGetProperty("tags", out var tagsElem))
                         {
-                            foreach (var lElem in cardLang.EnumerateArray())
+                            foreach (var tag in tagsElem.EnumerateArray())
                             {
-                                var code = (lElem.GetString() ?? "").ToLowerInvariant();
+                                var t = (tag.GetString() ?? "").ToLowerInvariant();
+                                rawTags.Add(t);
+                            }
+                        }
+
+                        // Strictly filter for compatibility
+                        if (!IsCompatibleModel(id, rawTags))
+                        {
+                            continue;
+                        }
+
+                        seenIds.Add(id);
+                        var parts = id.Split('/');
+                        var author = parts.Length > 1 ? parts[0] : "";
+                        var name = parts.Length > 1 ? parts[1] : id;
+                        var downloads = item.TryGetProperty("downloads", out var d) ? d.GetInt32() : 0;
+                        var likes = item.TryGetProperty("likes", out var l) ? l.GetInt32() : 0;
+
+                        var langCodes = new List<string>();
+                        var langNames = new List<string>();
+
+                        if (item.TryGetProperty("cardData", out var cardData) && cardData.TryGetProperty("language", out var cardLang))
+                        {
+                            if (cardLang.ValueKind == JsonValueKind.Array)
+                            {
+                                foreach (var lElem in cardLang.EnumerateArray())
+                                {
+                                    var code = (lElem.GetString() ?? "").ToLowerInvariant();
+                                    if (!string.IsNullOrEmpty(code) && !langCodes.Contains(code)) langCodes.Add(code);
+                                    if (HfModelInfo.CodeToLanguage.TryGetValue(code, out var langName) && !langNames.Contains(langName))
+                                    {
+                                        langNames.Add(langName);
+                                    }
+                                }
+                            }
+                            else if (cardLang.ValueKind == JsonValueKind.String)
+                            {
+                                var code = (cardLang.GetString() ?? "").ToLowerInvariant();
                                 if (!string.IsNullOrEmpty(code) && !langCodes.Contains(code)) langCodes.Add(code);
                                 if (HfModelInfo.CodeToLanguage.TryGetValue(code, out var langName) && !langNames.Contains(langName))
                                 {
@@ -589,22 +669,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
                                 }
                             }
                         }
-                        else if (cardLang.ValueKind == JsonValueKind.String)
-                        {
-                            var code = (cardLang.GetString() ?? "").ToLowerInvariant();
-                            if (!string.IsNullOrEmpty(code) && !langCodes.Contains(code)) langCodes.Add(code);
-                            if (HfModelInfo.CodeToLanguage.TryGetValue(code, out var langName) && !langNames.Contains(langName))
-                            {
-                                langNames.Add(langName);
-                            }
-                        }
-                    }
 
-                    if (item.TryGetProperty("tags", out var tags))
-                    {
-                        foreach (var tag in tags.EnumerateArray())
+                        foreach (var tag in rawTags)
                         {
-                            var t = (tag.GetString() ?? "").ToLowerInvariant();
+                            var t = tag;
                             if (t.StartsWith("language:"))
                             {
                                 t = t.Substring("language:".Length);
@@ -615,89 +683,97 @@ public sealed class MainViewModel : INotifyPropertyChanged
                                 if (!langNames.Contains(langName)) langNames.Add(langName);
                             }
                         }
+
+                        if (id.StartsWith("facebook/mms-tts-", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var sub = id.Substring("facebook/mms-tts-".Length).ToLowerInvariant();
+                            if (HfModelInfo.CodeToLanguage.TryGetValue(sub, out var foundLang) && !langNames.Contains(foundLang))
+                            {
+                                langNames.Add(foundLang);
+                                langCodes.Add(sub);
+                            }
+                        }
+
+                        string langText;
+                        if (langNames.Count > 0)
+                        {
+                            langText = string.Join(", ", langNames.Take(5));
+                            if (langNames.Count > 5) langText += $", +{langNames.Count - 5} more";
+                        }
+                        else
+                        {
+                            langText = id.Contains("ara", StringComparison.OrdinalIgnoreCase) ? "Arabic" : 
+                                       (id.Contains("deu", StringComparison.OrdinalIgnoreCase) ? "German" : 
+                                       (id.Contains("rus", StringComparison.OrdinalIgnoreCase) ? "Russian" : "Multilingual"));
+                        }
+
+                        var downloadsText = downloads >= 1_000_000 ? $"{downloads / 1_000_000.0:F1}M downloads" :
+                                            downloads >= 1_000 ? $"{downloads / 1_000.0:F1}K downloads" : $"{downloads} downloads";
+
+                        var likesText = likes >= 1_000_000 ? $"{likes / 1_000_000.0:F1}M" :
+                                        likes >= 1_000 ? $"{likes / 1_000.0:F1}k" : $"{likes}";
+
+                        string sizeText = "";
+                        if (ManifestSizeCache.TryGetValue(id, out var cachedSize))
+                        {
+                            sizeText = cachedSize;
+                        }
+                        else if (item.TryGetProperty("safetensors", out var safetensors) && safetensors.TryGetProperty("total", out var total))
+                        {
+                            var totalBytes = total.GetInt64();
+                            if (totalBytes >= 1_073_741_824)
+                                sizeText = $"{totalBytes / 1_073_741_824.0:F1} GB";
+                            else if (totalBytes >= 1_048_576)
+                                sizeText = $"{totalBytes / 1_048_576.0:F0} MB";
+                            else if (totalBytes > 0)
+                                sizeText = $"{totalBytes / 1024.0:F0} KB";
+                        }
+
+                        if (string.IsNullOrEmpty(sizeText))
+                        {
+                            if (id.Contains("Kokoro", StringComparison.OrdinalIgnoreCase)) sizeText = "82 MB";
+                            else if (id.Contains("XTTS", StringComparison.OrdinalIgnoreCase)) sizeText = "1.87 GB";
+                            else if (id.Contains("mms-tts", StringComparison.OrdinalIgnoreCase)) sizeText = "145 MB";
+                            else sizeText = "~145 MB";
+                        }
+
+                        var installedIds = InstalledEngines.Where(e => e.IsInstalled).Select(e => e.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                        var isInstalled = installedIds.Contains(id) ||
+                                          id.Equals("hexgrad/Kokoro-82M", StringComparison.OrdinalIgnoreCase) ||
+                                          (id.Equals("coqui/XTTS-v2", StringComparison.OrdinalIgnoreCase) && IsXttsInstalled);
+
+                        fetchedList.Add(new HfModelInfo
+                        {
+                            Id = id,
+                            Name = name,
+                            Author = author,
+                            Downloads = downloads,
+                            Likes = likes,
+                            DownloadsText = downloadsText,
+                            LikesText = likesText,
+                            SizeText = sizeText,
+                            LanguagesText = langText,
+                            LanguageCodes = langCodes,
+                            IsInstalled = isInstalled
+                        });
                     }
-
-                    string langText;
-                    if (langNames.Count > 0)
-                    {
-                        langText = string.Join(", ", langNames.Take(5));
-                        if (langNames.Count > 5) langText += $", +{langNames.Count - 5} more";
-                    }
-                    else
-                    {
-                        langText = id.Contains("ara", StringComparison.OrdinalIgnoreCase) ? "Arabic" : 
-                                   (id.Contains("deu", StringComparison.OrdinalIgnoreCase) ? "German" : 
-                                   (id.Contains("rus", StringComparison.OrdinalIgnoreCase) ? "Russian" : "Multilingual"));
-                    }
-
-                    var downloadsText = downloads >= 1_000_000 ? $"{downloads / 1_000_000.0:F1}M downloads" :
-                                        downloads >= 1_000 ? $"{downloads / 1_000.0:F1}K downloads" : $"{downloads} downloads";
-
-                    var likesText = likes >= 1_000_000 ? $"{likes / 1_000_000.0:F1}M" :
-                                    likes >= 1_000 ? $"{likes / 1_000.0:F1}k" : $"{likes}";
-
-                    string sizeText = "";
-                    if (ManifestSizeCache.TryGetValue(id, out var cachedSize))
-                    {
-                        sizeText = cachedSize;
-                    }
-                    else if (item.TryGetProperty("safetensors", out var safetensors) && safetensors.TryGetProperty("total", out var total))
-                    {
-                        var totalBytes = total.GetInt64();
-                        if (totalBytes >= 1_073_741_824)
-                            sizeText = $"{totalBytes / 1_073_741_824.0:F1} GB";
-                        else if (totalBytes >= 1_048_576)
-                            sizeText = $"{totalBytes / 1_048_576.0:F0} MB";
-                        else if (totalBytes > 0)
-                            sizeText = $"{totalBytes / 1024.0:F0} KB";
-                    }
-                    else if (item.TryGetProperty("gguf", out var gguf))
-                    {
-                        long gBytes = 0;
-                        if (gguf.TryGetProperty("totalFileSize", out var gTotalFile)) gBytes = gTotalFile.GetInt64();
-                        else if (gguf.TryGetProperty("total", out var gTotal)) gBytes = gTotal.GetInt64();
-
-                        if (gBytes >= 1_073_741_824)
-                            sizeText = $"{gBytes / 1_073_741_824.0:F1} GB";
-                        else if (gBytes >= 1_048_576)
-                            sizeText = $"{gBytes / 1_048_576.0:F0} MB";
-                        else if (gBytes > 0)
-                            sizeText = $"{gBytes / 1024.0:F0} KB";
-                    }
-
-                    if (string.IsNullOrEmpty(sizeText))
-                    {
-                        if (id.Contains("Kokoro", StringComparison.OrdinalIgnoreCase)) sizeText = "82 MB";
-                        else if (id.Contains("XTTS", StringComparison.OrdinalIgnoreCase)) sizeText = "1.87 GB";
-                        else if (id.Contains("mms-tts", StringComparison.OrdinalIgnoreCase)) sizeText = "145 MB";
-                        else if (id.Contains("1.7B", StringComparison.OrdinalIgnoreCase) || id.Contains("1.5", StringComparison.OrdinalIgnoreCase)) sizeText = "1.7 GB";
-                        else if (id.Contains("0.6B", StringComparison.OrdinalIgnoreCase)) sizeText = "864 MB";
-                        else if (id.Contains("F5-TTS", StringComparison.OrdinalIgnoreCase)) sizeText = "1.1 GB";
-                        else if (id.Contains("chatterbox", StringComparison.OrdinalIgnoreCase)) sizeText = "1.9 GB";
-                        else sizeText = "~1.2 GB";
-                    }
-
-                    var installedIds = InstalledEngines.Where(e => e.IsInstalled).Select(e => e.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
-                    var isInstalled = installedIds.Contains(id) ||
-                                      id.Equals("hexgrad/Kokoro-82M", StringComparison.OrdinalIgnoreCase) ||
-                                      (id.Equals("coqui/XTTS-v2", StringComparison.OrdinalIgnoreCase) && IsXttsInstalled) ||
-                                      id.Equals("facebook/mms-tts-ara", StringComparison.OrdinalIgnoreCase);
-
-                    HfModels.Add(new HfModelInfo
-                    {
-                        Id = id,
-                        Name = name,
-                        Author = author,
-                        Downloads = downloads,
-                        Likes = likes,
-                        DownloadsText = downloadsText,
-                        LikesText = likesText,
-                        SizeText = sizeText,
-                        LanguagesText = langText,
-                        LanguageCodes = langCodes,
-                        IsInstalled = isInstalled
-                    });
                 }
+                catch
+                {
+                }
+            }
+
+            if (fetchedList.Count > 0)
+            {
+                HfModels.Clear();
+                foreach (var m in fetchedList)
+                {
+                    HfModels.Add(m);
+                }
+            }
+            else
+            {
+                PopulateFallbackHfModels();
             }
         }
         catch
@@ -957,20 +1033,62 @@ public sealed class MainViewModel : INotifyPropertyChanged
             SizeText = "145 MB",
             LanguagesText = "Arabic (العربية)",
             LanguageCodes = ["ar", "ara"],
-            IsInstalled = true
+            IsInstalled = false
         });
         HfModels.Add(new HfModelInfo
         {
-            Id = "SWivid/F5-TTS",
-            Name = "F5-TTS",
-            Author = "SWivid",
-            Downloads = 950000,
-            Likes = 1200,
-            DownloadsText = "950K downloads",
-            LikesText = "1.2k",
-            SizeText = "1.1 GB",
-            LanguagesText = "English, Chinese",
-            LanguageCodes = ["en", "zh"],
+            Id = "facebook/mms-tts-deu",
+            Name = "MMS-TTS German",
+            Author = "facebook",
+            Downloads = 450000,
+            Likes = 620,
+            DownloadsText = "450K downloads",
+            LikesText = "620",
+            SizeText = "145 MB",
+            LanguagesText = "German",
+            LanguageCodes = ["de", "deu"],
+            IsInstalled = false
+        });
+        HfModels.Add(new HfModelInfo
+        {
+            Id = "facebook/mms-tts-spa",
+            Name = "MMS-TTS Spanish",
+            Author = "facebook",
+            Downloads = 580000,
+            Likes = 790,
+            DownloadsText = "580K downloads",
+            LikesText = "790",
+            SizeText = "145 MB",
+            LanguagesText = "Spanish",
+            LanguageCodes = ["es", "spa"],
+            IsInstalled = false
+        });
+        HfModels.Add(new HfModelInfo
+        {
+            Id = "facebook/mms-tts-fra",
+            Name = "MMS-TTS French",
+            Author = "facebook",
+            Downloads = 390000,
+            Likes = 510,
+            DownloadsText = "390K downloads",
+            LikesText = "510",
+            SizeText = "145 MB",
+            LanguagesText = "French",
+            LanguageCodes = ["fr", "fra"],
+            IsInstalled = false
+        });
+        HfModels.Add(new HfModelInfo
+        {
+            Id = "facebook/mms-tts-eng",
+            Name = "MMS-TTS English",
+            Author = "facebook",
+            Downloads = 890000,
+            Likes = 940,
+            DownloadsText = "890K downloads",
+            LikesText = "940",
+            SizeText = "145 MB",
+            LanguagesText = "English",
+            LanguageCodes = ["en", "eng"],
             IsInstalled = false
         });
     }
@@ -1024,61 +1142,104 @@ public sealed class MainViewModel : INotifyPropertyChanged
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "Atten", "Models");
 
+        var xttsItem = InstalledEngines.FirstOrDefault(e => e.Id.Equals("coqui/XTTS-v2", StringComparison.OrdinalIgnoreCase));
+        var xttsDir = Path.Combine(modelsDir, "XTTS-v2");
+        var xttsModelFile = Path.Combine(xttsDir, "model.pth");
+        bool xttsOnDisk = Directory.Exists(xttsDir) && File.Exists(xttsModelFile) && new FileInfo(xttsModelFile).Length > 100_000_000;
+        if (xttsOnDisk)
+        {
+            IsXttsInstalled = true;
+            if (xttsItem is not null) xttsItem.IsInstalled = true;
+        }
+
         if (!Directory.Exists(modelsDir)) return;
+
+        var validInstalledIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var dir in Directory.GetDirectories(modelsDir))
         {
             var folderName = Path.GetFileName(dir);
-            if (folderName.Equals("XTTS-v2", StringComparison.OrdinalIgnoreCase))
-            {
-                var xttsItem = InstalledEngines.FirstOrDefault(e => e.Id.Equals("coqui/XTTS-v2", StringComparison.OrdinalIgnoreCase));
-                if (xttsItem is not null)
-                {
-                    xttsItem.IsInstalled = true;
-                    IsXttsInstalled = true;
-                }
-                continue;
-            }
+            if (folderName.Equals("XTTS-v2", StringComparison.OrdinalIgnoreCase)) continue;
 
             if (folderName.Contains("--"))
             {
                 var modelId = folderName.Replace("--", "/");
+
+                // Check for incomplete download files (.part, .tmp, .download)
+                var allFiles = Directory.GetFiles(dir, "*", SearchOption.AllDirectories);
+                if (allFiles.Length == 0) continue;
+
+                if (allFiles.Any(f => f.EndsWith(".part", StringComparison.OrdinalIgnoreCase) ||
+                                      f.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) ||
+                                      f.EndsWith(".download", StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                // Check for valid weights (>1MB) or completion marker
+                bool hasModelWeights = allFiles.Any(f =>
+                {
+                    var name = Path.GetFileName(f).ToLowerInvariant();
+                    if (name is ".atten_complete" or ".complete") return true;
+                    if (name is "readme.md" or ".gitattributes" or ".gitignore" or "license" or "license.txt") return false;
+                    var ext = Path.GetExtension(f).ToLowerInvariant();
+                    return ext is ".bin" or ".pt" or ".pth" or ".safetensors" or ".onnx" or ".gguf" or ".nemo" or ".tflite" or ".engine" or ".model"
+                           && new FileInfo(f).Length > 1024 * 1024;
+                });
+
+                if (!hasModelWeights) continue;
+
+                validInstalledIds.Add(modelId);
+
                 var existing = InstalledEngines.FirstOrDefault(e => e.Id.Equals(modelId, StringComparison.OrdinalIgnoreCase));
                 if (existing is not null)
                 {
                     existing.IsInstalled = true;
-                    continue;
+                }
+                else
+                {
+                    var parts = modelId.Split('/');
+                    var name = parts.Length > 1 ? parts[1] : modelId;
+                    var hfMatch = HfModels.FirstOrDefault(m => m.Id.Equals(modelId, StringComparison.OrdinalIgnoreCase));
+                    var langText = hfMatch?.LanguagesText ?? (name.Contains("ara", StringComparison.OrdinalIgnoreCase) ? "Arabic" : "Multilingual");
+
+                    InstalledEngines.Add(new InstalledModelItem
+                    {
+                        Id = modelId,
+                        Name = name,
+                        Description = $"{modelId} • {langText}",
+                        SupportedLanguages = langText,
+                        IsInstalled = true,
+                        IsBundled = false
+                    });
                 }
 
-                // Verify directory has non-part files
-                var files = Directory.GetFiles(dir);
-                if (files.Length == 0 || files.All(f => Path.GetFileName(f).StartsWith('.')))
+                var hf = HfModels.FirstOrDefault(m => m.Id.Equals(modelId, StringComparison.OrdinalIgnoreCase));
+                if (hf is not null)
                 {
-                    continue;
+                    hf.IsInstalled = true;
+                    hf.IsDownloading = false;
                 }
+            }
+        }
 
-                var parts = modelId.Split('/');
-                var author = parts.Length > 1 ? parts[0] : "";
-                var name = parts.Length > 1 ? parts[1] : modelId;
+        // Clean up any dynamic InstalledEngines that are not fully on disk
+        var toRemove = InstalledEngines.Where(e => !e.IsBundled && !e.Id.Equals("coqui/XTTS-v2", StringComparison.OrdinalIgnoreCase) && !validInstalledIds.Contains(e.Id)).ToList();
+        foreach (var item in toRemove)
+        {
+            InstalledEngines.Remove(item);
+        }
 
-                var hfMatch = HfModels.FirstOrDefault(m => m.Id.Equals(modelId, StringComparison.OrdinalIgnoreCase));
-                var langText = hfMatch?.LanguagesText ?? (name.Contains("ara", StringComparison.OrdinalIgnoreCase) ? "Arabic" : "Multilingual");
-
-                InstalledEngines.Add(new InstalledModelItem
-                {
-                    Id = modelId,
-                    Name = name,
-                    Description = $"{modelId} • {langText}",
-                    SupportedLanguages = langText,
-                    IsInstalled = true,
-                    IsBundled = false
-                });
-
-                if (hfMatch is not null)
-                {
-                    hfMatch.IsInstalled = true;
-                    hfMatch.IsDownloading = false;
-                }
+        // Update HfModels statuses
+        foreach (var hf in HfModels)
+        {
+            if (hf.Id.Equals("coqui/XTTS-v2", StringComparison.OrdinalIgnoreCase))
+            {
+                hf.IsInstalled = IsXttsInstalled;
+            }
+            else
+            {
+                hf.IsInstalled = validInstalledIds.Contains(hf.Id);
             }
         }
     }
@@ -1115,26 +1276,22 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public void UpdateAvailableModels()
     {
         var current = SelectedModel;
-        var models = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        var models = new List<string>
         {
             "All Models",
-            "Kokoro-82M",
-            "XTTS-v2 & Multilingual Neural"
+            "Kokoro-82M"
         };
 
-        foreach (var engine in InstalledEngines.Where(e => e.IsInstalled))
+        if (IsXttsInstalled)
         {
-            if (!string.IsNullOrWhiteSpace(engine.Name))
-            {
-                models.Add(engine.Name);
-            }
+            models.Add("XTTS-v2 & Multilingual Neural");
         }
 
-        foreach (var hf in HfModels.Where(m => m.IsInstalled))
+        foreach (var engine in InstalledEngines.Where(e => e.IsInstalled && !e.IsBundled && !e.Id.Equals("coqui/XTTS-v2", StringComparison.OrdinalIgnoreCase)))
         {
-            if (!string.IsNullOrWhiteSpace(hf.Name))
+            if (!string.IsNullOrWhiteSpace(engine.Name) && !models.Contains(engine.Name, StringComparer.OrdinalIgnoreCase))
             {
-                models.Add(hf.Name);
+                models.Add(engine.Name);
             }
         }
 
@@ -1343,6 +1500,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
         DownloadEta = "";
         DownloadStatus = $"Download for {modelId} cancelled.";
         Status = $"Download for {modelId} cancelled.";
+
+        ScanInstalledEngines();
+        UpdateDynamicVoices();
+        UpdateAvailableModels();
+        UpdateAvailableLanguages();
+        UpdateStudioVoices();
+        UpdateFilteredVoices();
+        UpdateFilteredHfModels();
     }
 
     public async Task StartAsync()

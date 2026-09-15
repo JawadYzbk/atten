@@ -146,14 +146,26 @@ class XTTSv2Provider:
             chunks = [text.strip()]
 
         for chunk in chunks:
+            if not chunk:
+                continue
             inputs = tokenizer(chunk, return_tensors="pt")
+            if "input_ids" not in inputs or inputs["input_ids"] is None or inputs["input_ids"].numel() == 0:
+                continue
+
+            input_ids = inputs["input_ids"].long()
             if hasattr(model, "device"):
-                inputs = {k: v.to(model.device) for k, v in inputs.items()}
+                input_ids = input_ids.to(model.device)
+
+            model_inputs = {"input_ids": input_ids}
+            if "attention_mask" in inputs and inputs["attention_mask"] is not None and inputs["attention_mask"].numel() > 0:
+                model_inputs["attention_mask"] = inputs["attention_mask"].long().to(input_ids.device)
 
             with torch.no_grad():
-                output = model(**inputs).waveform
+                output = model(**model_inputs).waveform
 
             raw_audio = output.squeeze().cpu().numpy()
+            if raw_audio.ndim == 0 or len(raw_audio) == 0:
+                continue
             sr = getattr(model.config, "sampling_rate", 16000)
             resampled_audio = _resample_and_speed(
                 raw_audio, orig_sr=sr, target_sr=24000, speed=speed
