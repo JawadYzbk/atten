@@ -80,3 +80,10 @@ public sealed record BackendInfo
 }
 
 public sealed record GenerationOutput(string Path, int Segments, int SampleRate);
+
+public sealed record ModelDownloadProgress(
+    int Percent,
+    string Status,
+    string Speed,
+    string Eta,
+    string SizeText);

@@ -95,7 +95,7 @@ public sealed class BackendClient
 
     public async Task DownloadModelAsync(
         string modelId,
-        IProgress<(int Percent, string Status)> progress,
+        IProgress<ModelDownloadProgress> progress,
         CancellationToken cancellationToken)
     {
         var command = LocateCommand();
@@ -114,11 +114,16 @@ public sealed class BackendClient
 
         process.Start();
 
+        using var reg = cancellationToken.Register(() =>
+        {
+            try { process.Kill(true); } catch { }
+        });
+
         var readerTask = Task.Run(async () =>
         {
             while (!process.StandardOutput.EndOfStream)
             {
-                var line = await process.StandardOutput.ReadLineAsync(cancellationToken);
+                var line = await process.StandardOutput.ReadLineAsync();
                 if (string.IsNullOrWhiteSpace(line)) continue;
                 try
                 {
@@ -131,18 +136,35 @@ public sealed class BackendClient
                         {
                             var percent = root.TryGetProperty("percent", out var p) ? p.GetInt32() : 0;
                             var status = root.TryGetProperty("status", out var s) ? s.GetString() ?? "" : "";
-                            progress.Report((percent, status));
+                            var speed = root.TryGetProperty("speed", out var sp) ? sp.GetString() ?? "" : "";
+                            var eta = root.TryGetProperty("eta", out var et) ? et.GetString() ?? "" : "";
+                            var sizeText = root.TryGetProperty("size_text", out var st) ? st.GetString() ?? "" : "";
+                            progress.Report(new ModelDownloadProgress(percent, status, speed, eta, sizeText));
                         }
                     }
                 }
                 catch { }
             }
-        }, cancellationToken);
+        });
 
-        var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken);
+        var errorTask = process.StandardError.ReadToEndAsync();
+        try
+        {
+            await process.WaitForExitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            try { process.Kill(true); } catch { }
+            throw;
+        }
+
         await readerTask;
         var error = await errorTask;
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            throw new OperationCanceledException(cancellationToken);
+        }
 
         if (process.ExitCode != 0)
         {

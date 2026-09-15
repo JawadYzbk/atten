@@ -74,8 +74,14 @@ public sealed partial class MainWindow : Window
 
     private async void OnDownloadXttsClicked(object sender, RoutedEventArgs args)
     {
+        if (model.IsDownloadingModel) return;
+
         DownloadXttsButton.IsEnabled = false;
         XttsProgressBar.Visibility = Visibility.Visible;
+        XttsMetricsGrid.Visibility = Visibility.Visible;
+        PauseXttsButton.Visibility = Visibility.Visible;
+        PauseXttsButton.Content = "Pause";
+
         try
         {
             await model.DownloadXttsModelAsync();
@@ -83,18 +89,39 @@ public sealed partial class MainWindow : Window
             {
                 DownloadXttsButton.Content = "Installed";
                 DownloadXttsButton.IsEnabled = false;
+                PauseXttsButton.Visibility = Visibility.Collapsed;
+                XttsMetricsGrid.Visibility = Visibility.Collapsed;
             }
             else
             {
+                DownloadXttsButton.Content = "Resume Download";
                 DownloadXttsButton.IsEnabled = true;
+                PauseXttsButton.Content = "Resume";
             }
         }
         finally
         {
             if (!model.IsXttsInstalled)
             {
+                DownloadXttsButton.Content = "Resume Download";
                 DownloadXttsButton.IsEnabled = true;
+                PauseXttsButton.Content = "Resume";
             }
+        }
+    }
+
+    private async void OnPauseXttsClicked(object sender, RoutedEventArgs args)
+    {
+        if (model.IsDownloadingModel)
+        {
+            model.PauseModelDownload();
+            PauseXttsButton.Content = "Resume";
+            DownloadXttsButton.Content = "Resume Download";
+            DownloadXttsButton.IsEnabled = true;
+        }
+        else
+        {
+            OnDownloadXttsClicked(sender, args);
         }
     }
 

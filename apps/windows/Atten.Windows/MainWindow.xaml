@@ -154,6 +154,7 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Spacing="2">
                                         <TextBlock Text="XTTS-v2 (Arabic &amp; Multilingual)" FontWeight="SemiBold" />
@@ -164,6 +165,13 @@
                                             Content="Download Model"
                                             Click="OnDownloadXttsClicked"
                                             VerticalAlignment="Center" />
+                                    <Button x:Name="PauseXttsButton"
+                                            Grid.Column="2"
+                                            Content="Pause"
+                                            Click="OnPauseXttsClicked"
+                                            Visibility="Collapsed"
+                                            VerticalAlignment="Center"
+                                            Margin="8,0,0,0" />
                                 </Grid>
 
                                 <ProgressBar x:Name="XttsProgressBar"
@@ -171,6 +179,19 @@
                                              Maximum="100"
                                              MinHeight="8"
                                              Visibility="Collapsed" />
+
+                                <Grid x:Name="XttsMetricsGrid" ColumnSpacing="12" Visibility="Collapsed">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="{Binding DownloadSpeed}" FontWeight="SemiBold" FontSize="12" />
+                                        <TextBlock Text="•" Opacity="0.5" FontSize="12" />
+                                        <TextBlock Text="{Binding DownloadEta}" Opacity="0.8" FontSize="12" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="{Binding DownloadSizeText}" Opacity="0.8" FontSize="12" />
+                                </Grid>
 
                                 <TextBlock x:Name="XttsProgressLabel"
                                            Text="{Binding DownloadStatus}"

@@ -22,8 +22,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private BackendInfo? backendInfo;
     private bool isXttsInstalled;
     private bool isDownloadingModel;
+    private bool isDownloadPaused;
     private int downloadProgress;
     private string downloadStatus = "";
+    private string downloadSpeed = "";
+    private string downloadEta = "";
+    private string downloadSizeText = "";
     private CancellationTokenSource? downloadCts;
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -45,6 +49,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
         set => Set(ref isDownloadingModel, value);
     }
 
+    public bool IsDownloadPaused
+    {
+        get => isDownloadPaused;
+        set => Set(ref isDownloadPaused, value);
+    }
+
     public int DownloadProgress
     {
         get => downloadProgress;
@@ -55,6 +65,24 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         get => downloadStatus;
         set => Set(ref downloadStatus, value);
+    }
+
+    public string DownloadSpeed
+    {
+        get => downloadSpeed;
+        set => Set(ref downloadSpeed, value);
+    }
+
+    public string DownloadEta
+    {
+        get => downloadEta;
+        set => Set(ref downloadEta, value);
+    }
+
+    public string DownloadSizeText
+    {
+        get => downloadSizeText;
+        set => Set(ref downloadSizeText, value);
     }
 
     public string DraftTitle
@@ -135,31 +163,43 @@ public sealed class MainViewModel : INotifyPropertyChanged
         if (IsDownloadingModel) return;
 
         IsDownloadingModel = true;
-        DownloadProgress = 0;
+        IsDownloadPaused = false;
         DownloadStatus = "Connecting to Hugging Face...";
         downloadCts?.Cancel();
         downloadCts = new CancellationTokenSource();
 
         try
         {
-            var progress = new Progress<(int Percent, string Status)>(update =>
+            var progress = new Progress<ModelDownloadProgress>(update =>
             {
                 DownloadProgress = update.Percent;
                 DownloadStatus = update.Status;
+                DownloadSpeed = update.Speed;
+                DownloadEta = string.IsNullOrWhiteSpace(update.Eta) ? "" : $"ETA: {update.Eta}";
+                DownloadSizeText = update.SizeText;
             });
 
             await backend.DownloadModelAsync("xtts-v2", progress, downloadCts.Token);
             IsXttsInstalled = true;
+            IsDownloadPaused = false;
+            DownloadSpeed = "";
+            DownloadEta = "";
             DownloadStatus = "XTTS-v2 downloaded successfully!";
             Status = "XTTS-v2 (Arabic & Multilingual) ready.";
         }
         catch (OperationCanceledException)
         {
-            DownloadStatus = "Download cancelled.";
+            IsDownloadPaused = true;
+            DownloadSpeed = "";
+            DownloadEta = "";
+            DownloadStatus = "Download paused (resumable).";
         }
         catch (Exception ex)
         {
-            DownloadStatus = $"Download failed: {ex.Message}";
+            IsDownloadPaused = true;
+            DownloadSpeed = "";
+            DownloadEta = "";
+            DownloadStatus = $"Download stopped: {ex.Message}";
         }
         finally
         {
@@ -167,7 +207,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    public void CancelModelDownload()
+    public void PauseModelDownload()
     {
         downloadCts?.Cancel();
     }
