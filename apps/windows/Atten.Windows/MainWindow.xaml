@@ -25,7 +25,12 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <TextBlock Text="{Binding Status}" TextWrapping="Wrap" />
+                <StackPanel Spacing="6">
+                    <TextBlock Text="{Binding Status}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <ProgressBar IsIndeterminate="True"
+                                 Visibility="{Binding GeneratingVisibility}"
+                                 MinHeight="4" />
+                </StackPanel>
 
                 <Grid x:Name="StudioPanel" Grid.Row="1" ColumnSpacing="20">
                     <Grid.ColumnDefinitions>
@@ -43,7 +48,7 @@
                                  AcceptsReturn="True"
                                  TextWrapping="Wrap"
                                  MinHeight="360"
-                                 PlaceholderText="Start writing here..." />
+                                 PlaceholderText="Start writing or paste text here in any language (English, Arabic, Spanish, French, German, Japanese, etc.)..." />
                     </StackPanel>
 
                     <StackPanel Grid.Column="1" Spacing="16">
@@ -78,21 +83,26 @@
 
                 <StackPanel x:Name="PlaygroundPanel" Grid.Row="1" Spacing="12" Visibility="Collapsed">
                     <TextBlock Text="Playground" Style="{StaticResource TitleTextBlockStyle}" />
-                    <TextBlock Text="Use Studio controls for the first Windows scaffold. Voice preview and temporary generation will be added on this screen." TextWrapping="Wrap" />
+                    <TextBlock Text="Explore voices, text-to-speech experimentation, and instant previews across all installed models." TextWrapping="Wrap" />
                 </StackPanel>
 
                 <Grid x:Name="VoicesPanel" Grid.Row="1" RowSpacing="12" Visibility="Collapsed">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <TextBlock Text="Voices" Style="{StaticResource TitleTextBlockStyle}" />
-                    <ListView Grid.Row="1" ItemsSource="{Binding Voices}" SelectionMode="None">
+                    <TextBlock Text="Voices &amp; Languages" Style="{StaticResource TitleTextBlockStyle}" />
+                    <TextBox Grid.Row="1"
+                             Header="Filter voices"
+                             Text="{Binding VoiceSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             PlaceholderText="Search by name, language (e.g. Arabic, German), trait, or gender..." />
+                    <ListView Grid.Row="2" ItemsSource="{Binding FilteredVoices}" SelectionMode="None">
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="local:Voice">
-                                <StackPanel Padding="0,8">
-                                    <TextBlock Text="{x:Bind Name}" FontWeight="SemiBold" />
-                                    <TextBlock Text="{x:Bind Language}" Opacity="0.7" />
+                                <StackPanel Padding="0,8" Spacing="2">
+                                    <TextBlock Text="{x:Bind Name}" FontWeight="SemiBold" FontSize="14" />
+                                    <TextBlock Text="{x:Bind Language}" Opacity="0.8" FontSize="12" />
                                 </StackPanel>
                             </DataTemplate>
                         </ListView.ItemTemplate>
@@ -108,9 +118,9 @@
                     <ListView Grid.Row="1" ItemsSource="{Binding Projects}" SelectionMode="None">
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="local:ProjectRecord">
-                                <StackPanel Padding="0,8">
+                                <StackPanel Padding="0,8" Spacing="2">
                                     <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" />
-                                    <TextBlock Text="{x:Bind AudioPath}" Opacity="0.7" />
+                                    <TextBlock Text="{x:Bind AudioPath}" Opacity="0.7" FontSize="12" />
                                 </StackPanel>
                             </DataTemplate>
                         </ListView.ItemTemplate>
@@ -142,8 +152,8 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Spacing="2">
-                                        <TextBlock Text="Kokoro-82M (Default)" FontWeight="SemiBold" />
-                                        <TextBlock Text="Bundled offline model (English, Spanish, French, Italian, Portuguese)" Opacity="0.7" FontSize="12" />
+                                        <TextBlock Text="Kokoro-82M (Default Engine)" FontWeight="SemiBold" />
+                                        <TextBlock Text="Bundled offline model (English US/UK, Spanish, French, Italian, Portuguese, Japanese, Mandarin, Hindi)" Opacity="0.7" FontSize="12" />
                                     </StackPanel>
                                     <TextBlock Grid.Column="1" Text="Installed" VerticalAlignment="Center" Foreground="{ThemeResource SystemAccentColor}" FontWeight="SemiBold" />
                                 </Grid>
@@ -157,8 +167,8 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Spacing="2">
-                                        <TextBlock Text="XTTS-v2 (Arabic &amp; Multilingual)" FontWeight="SemiBold" />
-                                        <TextBlock Text="High-quality neural model with Arabic (العربية) and 16+ languages (~1.8 GB)" Opacity="0.7" FontSize="12" />
+                                        <TextBlock Text="XTTS-v2 &amp; Multilingual Neural Models" FontWeight="SemiBold" />
+                                        <TextBlock Text="High-quality neural model with Arabic (العربية), German, Russian, Turkish, Dutch, Polish and 16+ languages" Opacity="0.7" FontSize="12" />
                                     </StackPanel>
                                     <Button x:Name="DownloadXttsButton"
                                             Grid.Column="1"
@@ -201,7 +211,7 @@
                             </StackPanel>
                         </Border>
 
-                        <TextBlock Text="All models and speech synthesis run 100% locally. No account or cloud API key is required." Opacity="0.7" FontSize="12" TextWrapping="Wrap" />
+                        <TextBlock Text="All models and speech synthesis run 100% locally. No cloud subscription or API key is required." Opacity="0.7" FontSize="12" TextWrapping="Wrap" />
                     </StackPanel>
                 </ScrollViewer>
 

@@ -20,12 +20,16 @@ public sealed class BackendClient
 
         foreach (var line in result.Split('\n', StringSplitOptions.RemoveEmptyEntries))
         {
-            using var document = JsonDocument.Parse(line);
-            if (document.RootElement.GetProperty("event").GetString() == "backend_info")
+            try
             {
-                return JsonSerializer.Deserialize<BackendInfo>(line, options)
-                    ?? throw new InvalidOperationException("Backend info was unreadable.");
+                using var document = JsonDocument.Parse(line);
+                if (document.RootElement.TryGetProperty("event", out var ev) && ev.GetString() == "backend_info")
+                {
+                    return JsonSerializer.Deserialize<BackendInfo>(line, options)
+                        ?? throw new InvalidOperationException("Backend info was unreadable.");
+                }
             }
+            catch (JsonException) { }
         }
 
         throw new InvalidOperationException("Backend did not return backend_info.");
@@ -63,24 +67,45 @@ public sealed class BackendClient
                 cancellationToken);
 
             string? completedPath = null;
+            string? errorMessage = null;
             var segments = 0;
             var sampleRate = 24000;
             foreach (var line in result.Split('\n', StringSplitOptions.RemoveEmptyEntries))
             {
-                using var document = JsonDocument.Parse(line);
-                var root = document.RootElement;
-                if (root.GetProperty("event").GetString() == "completed")
+                try
                 {
-                    completedPath = root.GetProperty("path").GetString();
-                    if (root.TryGetProperty("segments", out var segmentValue))
+                    using var document = JsonDocument.Parse(line);
+                    var root = document.RootElement;
+                    if (root.TryGetProperty("event", out var ev))
                     {
-                        segments = segmentValue.GetInt32();
-                    }
-                    if (root.TryGetProperty("sample_rate", out var rateValue))
-                    {
-                        sampleRate = rateValue.GetInt32();
+                        var eventType = ev.GetString();
+                        if (eventType == "completed")
+                        {
+                            completedPath = root.GetProperty("path").GetString();
+                            if (root.TryGetProperty("segments", out var segmentValue))
+                            {
+                                segments = segmentValue.GetInt32();
+                            }
+                            if (root.TryGetProperty("sample_rate", out var rateValue))
+                            {
+                                sampleRate = rateValue.GetInt32();
+                            }
+                        }
+                        else if (eventType == "error")
+                        {
+                            if (root.TryGetProperty("message", out var msg))
+                            {
+                                errorMessage = msg.GetString();
+                            }
+                        }
                     }
                 }
+                catch (JsonException) { }
+            }
+
+            if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                throw new InvalidOperationException(errorMessage);
             }
 
             return completedPath is null
@@ -188,6 +213,15 @@ public sealed class BackendClient
             ?? FindRepositoryRoot(Directory.GetCurrentDirectory());
         if (root is not null && File.Exists(Path.Combine(root, "cli.py")))
         {
+            var venvPython = Path.Combine(root, ".venv", "Scripts", "python.exe");
+            if (File.Exists(venvPython))
+            {
+                return new BackendCommand(venvPython, [Path.Combine(root, "cli.py")])
+                {
+                    WorkingDirectory = root
+                };
+            }
+
             return new BackendCommand("python", [Path.Combine(root, "cli.py")])
             {
                 WorkingDirectory = root

@@ -96,10 +96,10 @@ class KokoroProvider:
                         self._model = self._model.to(self.device_info.selected_device)
                     self._model = self._model.eval()
                 self._pipelines[language_code] = KPipeline(
-                    lang_code=language_code, model=self._model
+                    lang_code=language_code, model=self._model, repo_id="hexgrad/Kokoro-82M"
                 )
             else:
-                pipeline = KPipeline(lang_code=language_code)
+                pipeline = KPipeline(lang_code=language_code, repo_id="hexgrad/Kokoro-82M")
                 pipeline_model = getattr(pipeline, "model", None)
                 if hasattr(pipeline_model, "to"):
                     pipeline_model.to(self.device_info.selected_device)
@@ -153,13 +153,15 @@ class GenerationService:
     def get_provider_for_voice(self, voice: str):
         if self._explicit_provider:
             return self._explicit_provider
-        if self.engine == "xtts-v2" or voice.startswith("ar_") or voice.startswith("xtts_"):
-            if self._xtts_provider is None:
-                self._xtts_provider = XTTSv2Provider(device_mode=self.device_mode)
-            return self._xtts_provider
-        if self._kokoro_provider is None:
-            self._kokoro_provider = KokoroProvider(device_mode=self.device_mode)
-        return self._kokoro_provider
+        kokoro_prefixes = ("af_", "am_", "bf_", "bm_", "ef_", "em_", "ff_", "if_", "im_", "pf_", "pm_", "jf_", "jm_", "zf_", "zm_", "hf_", "hm_")
+        if self.engine != "xtts-v2" and voice.startswith(kokoro_prefixes):
+            if self._kokoro_provider is None:
+                self._kokoro_provider = KokoroProvider(device_mode=self.device_mode)
+            return self._kokoro_provider
+
+        if self._xtts_provider is None:
+            self._xtts_provider = XTTSv2Provider(device_mode=self.device_mode)
+        return self._xtts_provider
 
     def generate(
         self,

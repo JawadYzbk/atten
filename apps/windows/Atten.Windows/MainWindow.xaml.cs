@@ -38,7 +38,10 @@ public sealed partial class MainWindow : Window
         try
         {
             await model.GenerateAsync();
-            PlayCurrentOutput();
+            if (!string.IsNullOrWhiteSpace(model.CurrentAudioPath) && File.Exists(model.CurrentAudioPath))
+            {
+                PlayCurrentOutput();
+            }
         }
         finally
         {

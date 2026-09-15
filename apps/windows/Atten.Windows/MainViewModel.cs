@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using Microsoft.UI.Xaml;
 
 namespace Atten.Windows;
 
@@ -12,6 +13,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string draftTitle = "Untitled narration";
     private string draftText = "";
     private string selectedVoiceID = "af_heart";
+    private string voiceSearchText = "";
     private double speed = 1.0;
     private AudioFormat format = AudioFormat.mp3;
     private DeviceMode deviceMode = DeviceMode.auto;
@@ -34,8 +36,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public ObservableCollection<ProjectRecord> Projects { get; } = [];
     public IReadOnlyList<Voice> Voices => VoiceCatalog.All;
+    public ObservableCollection<Voice> FilteredVoices { get; } = [];
     public IReadOnlyList<AudioFormat> Formats { get; } = Enum.GetValues<AudioFormat>();
     public IReadOnlyList<DeviceMode> DeviceModes { get; } = Enum.GetValues<DeviceMode>();
+
+    public string VoiceSearchText
+    {
+        get => voiceSearchText;
+        set
+        {
+            if (Set(ref voiceSearchText, value))
+            {
+                UpdateFilteredVoices();
+            }
+        }
+    }
 
     public bool IsXttsInstalled
     {
@@ -142,8 +157,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool IsGenerating
     {
         get => isGenerating;
-        set => Set(ref isGenerating, value);
+        set
+        {
+            if (Set(ref isGenerating, value))
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(GeneratingVisibility)));
+            }
+        }
     }
+
+    public Visibility GeneratingVisibility => isGenerating ? Visibility.Visible : Visibility.Collapsed;
 
     public BackendInfo? BackendInfo
     {
@@ -154,6 +177,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (value is not null)
             {
                 IsXttsInstalled = value.XttsInstalled;
+            }
+        }
+    }
+
+    public void UpdateFilteredVoices()
+    {
+        FilteredVoices.Clear();
+        var query = (voiceSearchText ?? "").Trim().ToLowerInvariant();
+        foreach (var v in Voices)
+        {
+            if (string.IsNullOrEmpty(query) ||
+                v.Name.ToLowerInvariant().Contains(query) ||
+                v.Language.ToLowerInvariant().Contains(query) ||
+                v.Gender.ToLowerInvariant().Contains(query) ||
+                v.Traits.Any(t => t.ToLowerInvariant().Contains(query)))
+            {
+                FilteredVoices.Add(v);
             }
         }
     }
@@ -184,8 +224,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             IsDownloadPaused = false;
             DownloadSpeed = "";
             DownloadEta = "";
-            DownloadStatus = "XTTS-v2 downloaded successfully!";
-            Status = "XTTS-v2 (Arabic & Multilingual) ready.";
+            DownloadStatus = "XTTS-v2 & multilingual models downloaded successfully!";
+            Status = "XTTS-v2 & multilingual models ready.";
         }
         catch (OperationCanceledException)
         {
@@ -214,6 +254,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public async Task StartAsync()
     {
+        UpdateFilteredVoices();
         storage.Prepare();
         var settings = await storage.LoadSettingsAsync();
         OutputDirectory = settings.OutputDirectory;
@@ -231,7 +272,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         try
         {
             BackendInfo = await backend.GetInfoAsync(DeviceMode, CancellationToken.None);
-            Status = $"Backend ready on {BackendInfo.SelectedDevice}.";
+            Status = $"Backend ready on {BackendInfo.SelectedDevice}. ({Voices.Count} voices available)";
         }
         catch (Exception error)
         {
@@ -260,10 +301,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return;
         }
 
+        var voice = VoiceCatalog.ById(SelectedVoiceID);
         generationCts?.Cancel();
         generationCts = new CancellationTokenSource();
         IsGenerating = true;
-        Status = "Generating speech...";
+        Status = $"Generating speech with {voice.Name}...";
 
         try
         {
@@ -295,7 +337,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             Projects.Insert(0, project);
             await storage.SaveProjectsAsync(Projects);
             CurrentAudioPath = output.Path;
-            Status = "Speech is ready.";
+            Status = $"Speech ready! Saved to {Path.GetFileName(output.Path)}";
         }
         catch (OperationCanceledException)
         {
@@ -303,7 +345,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
         catch (Exception error)
         {
-            Status = error.Message;
+            Status = $"Error: {error.Message}";
         }
         finally
         {
@@ -336,13 +378,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return clean.Trim();
     }
 
-    private void Set<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    private bool Set<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))
         {
-            return;
+            return false;
         }
         field = value;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        return true;
     }
 }

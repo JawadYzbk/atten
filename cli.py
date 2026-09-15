@@ -260,7 +260,7 @@ def main(argv=None):
         with warnings.catch_warnings():
             process_input(args)
         return 0
-    except (OSError, RuntimeError, ValueError) as error:
+    except Exception as error:
         log_error(str(error))
         return 1
 
