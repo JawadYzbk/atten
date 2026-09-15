@@ -46,30 +46,50 @@ public sealed record VoiceGroup(string Language, string ModelEngine, IReadOnlyLi
 
 public sealed class HfModelInfo : INotifyPropertyChanged
 {
-    public static readonly Dictionary<string, string> LanguageToCode = new(StringComparer.OrdinalIgnoreCase)
+    public static readonly Dictionary<string, string[]> LanguageToCodes = new(StringComparer.OrdinalIgnoreCase)
     {
-        { "Arabic", "ar" },
-        { "English", "en" },
-        { "German", "de" },
-        { "Spanish", "es" },
-        { "French", "fr" },
-        { "Italian", "it" },
-        { "Portuguese", "pt" },
-        { "Russian", "ru" },
-        { "Turkish", "tr" },
-        { "Dutch", "nl" },
-        { "Polish", "pl" },
-        { "Japanese", "ja" },
-        { "Chinese", "zh" },
-        { "Hindi", "hi" },
-        { "Korean", "ko" },
-        { "Swedish", "sv" }
+        { "Arabic", ["ara", "arb", "ar"] },
+        { "English", ["eng", "en"] },
+        { "German", ["deu", "de"] },
+        { "Spanish", ["spa", "es"] },
+        { "French", ["fra", "fr"] },
+        { "Italian", ["ita", "it"] },
+        { "Portuguese", ["por", "pt"] },
+        { "Russian", ["rus", "ru"] },
+        { "Turkish", ["tur", "tr"] },
+        { "Dutch", ["nld", "nl"] },
+        { "Polish", ["pol", "pl"] },
+        { "Japanese", ["jpn", "ja"] },
+        { "Chinese", ["cmn", "zho", "zh"] },
+        { "Hindi", ["hin", "hi"] },
+        { "Korean", ["kor", "ko"] },
+        { "Vietnamese", ["vie", "vi"] },
+        { "Indonesian", ["ind", "id"] },
+        { "Ukrainian", ["ukr", "uk"] },
+        { "Greek", ["ell", "el"] },
+        { "Hebrew", ["heb", "he"] },
+        { "Czech", ["ces", "cs"] },
+        { "Romanian", ["ron", "ro"] },
+        { "Hungarian", ["hun", "hu"] },
+        { "Danish", ["dan", "da"] },
+        { "Norwegian", ["nor", "no"] },
+        { "Finnish", ["fin", "fi"] },
+        { "Swedish", ["swe", "sv"] },
+        { "Thai", ["tha", "th"] },
+        { "Tamil", ["tam", "ta"] },
+        { "Telugu", ["tel", "te"] },
+        { "Urdu", ["urd", "ur"] },
+        { "Bengali", ["ben", "bn"] },
+        { "Persian", ["pes", "fas", "fa"] },
+        { "Swahili", ["swh", "sw"] },
+        { "Catalan", ["cat", "ca"] }
     };
 
     public static readonly Dictionary<string, string> CodeToLanguage = new(StringComparer.OrdinalIgnoreCase)
     {
         { "ar", "Arabic" },
         { "ara", "Arabic" },
+        { "arb", "Arabic" },
         { "en", "English" },
         { "eng", "English" },
         { "de", "German" },
@@ -94,12 +114,52 @@ public sealed class HfModelInfo : INotifyPropertyChanged
         { "jpn", "Japanese" },
         { "zh", "Chinese" },
         { "zho", "Chinese" },
+        { "cmn", "Chinese" },
         { "hi", "Hindi" },
         { "hin", "Hindi" },
         { "ko", "Korean" },
         { "kor", "Korean" },
+        { "vi", "Vietnamese" },
+        { "vie", "Vietnamese" },
+        { "id", "Indonesian" },
+        { "ind", "Indonesian" },
+        { "uk", "Ukrainian" },
+        { "ukr", "Ukrainian" },
+        { "el", "Greek" },
+        { "ell", "Greek" },
+        { "he", "Hebrew" },
+        { "heb", "Hebrew" },
+        { "cs", "Czech" },
+        { "ces", "Czech" },
+        { "ro", "Romanian" },
+        { "ron", "Romanian" },
+        { "hu", "Hungarian" },
+        { "hun", "Hungarian" },
+        { "da", "Danish" },
+        { "dan", "Danish" },
+        { "no", "Norwegian" },
+        { "nor", "Norwegian" },
+        { "fi", "Finnish" },
+        { "fin", "Finnish" },
         { "sv", "Swedish" },
-        { "swe", "Swedish" }
+        { "swe", "Swedish" },
+        { "th", "Thai" },
+        { "tha", "Thai" },
+        { "ta", "Tamil" },
+        { "tam", "Tamil" },
+        { "te", "Telugu" },
+        { "tel", "Telugu" },
+        { "ur", "Urdu" },
+        { "urd", "Urdu" },
+        { "bn", "Bengali" },
+        { "ben", "Bengali" },
+        { "fa", "Persian" },
+        { "fas", "Persian" },
+        { "pes", "Persian" },
+        { "sw", "Swahili" },
+        { "swh", "Swahili" },
+        { "ca", "Catalan" },
+        { "cat", "Catalan" }
     };
 
     private bool isInstalled;
@@ -130,41 +190,38 @@ public sealed class HfModelInfo : INotifyPropertyChanged
 
     public bool SupportsLanguage(string language)
     {
-        if (string.IsNullOrWhiteSpace(language) || language == "All Languages") return true;
-
-        var code = LanguageToCode.TryGetValue(language, out var c) ? c : language.ToLowerInvariant();
-        var langLower = language.ToLowerInvariant();
-
-        // Specific known model language capabilities
-        if (Id.Equals("hexgrad/Kokoro-82M", StringComparison.OrdinalIgnoreCase))
-        {
-            return code is "en" or "es" or "fr" or "it" or "pt" or "ja" or "zh" or "hi";
-        }
-
-        if (Id.Equals("coqui/XTTS-v2", StringComparison.OrdinalIgnoreCase))
-        {
-            return code is "en" or "es" or "fr" or "de" or "it" or "pt" or "pl" or "tr" or "ru" or "nl" or "cs" or "ar" or "zh" or "ja" or "hu" or "ko" or "hi";
-        }
-
-        if (Id.Contains("mms-tts-", StringComparison.OrdinalIgnoreCase))
-        {
-            return Id.EndsWith($"-{code}", StringComparison.OrdinalIgnoreCase) ||
-                   (code == "ar" && Id.EndsWith("-ara", StringComparison.OrdinalIgnoreCase)) ||
-                   (code == "de" && Id.EndsWith("-deu", StringComparison.OrdinalIgnoreCase)) ||
-                   (code == "ru" && Id.EndsWith("-rus", StringComparison.OrdinalIgnoreCase));
-        }
-
-        // Check if explicit tag matches
-        if (LanguageCodes.Any(t => t.Equals(code, StringComparison.OrdinalIgnoreCase) || 
-                                   t.Equals(langLower, StringComparison.OrdinalIgnoreCase) ||
-                                   (code == "ar" && t.Equals("ara", StringComparison.OrdinalIgnoreCase)) ||
-                                   (code == "de" && t.Equals("deu", StringComparison.OrdinalIgnoreCase)) ||
-                                   (code == "ru" && t.Equals("rus", StringComparison.OrdinalIgnoreCase))))
+        if (string.IsNullOrWhiteSpace(language) || language.Equals("All Languages", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
 
-        return LanguagesText.ToLowerInvariant().Contains(langLower);
+        // Multilingual models
+        if (Id.Contains("xtts", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (Id.Contains("kokoro", StringComparison.OrdinalIgnoreCase))
+        {
+            var kokoroLangs = new[] { "English", "Spanish", "French", "Italian", "Portuguese", "Japanese", "Chinese", "Hindi" };
+            return kokoroLangs.Contains(language, StringComparer.OrdinalIgnoreCase);
+        }
+
+        if (LanguageToCodes.TryGetValue(language, out var codes))
+        {
+            foreach (var code in codes)
+            {
+                if (Id.EndsWith($"-{code}", StringComparison.OrdinalIgnoreCase) ||
+                    Id.Contains($"-{code}-", StringComparison.OrdinalIgnoreCase) ||
+                    Id.Contains($"_{code}", StringComparison.OrdinalIgnoreCase) ||
+                    LanguageCodes.Any(t => t.Equals(code, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return LanguagesText.Contains(language, StringComparison.OrdinalIgnoreCase);
     }
 
     public bool IsInstalled

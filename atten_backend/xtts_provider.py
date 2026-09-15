@@ -24,6 +24,27 @@ MMS_LANGUAGE_MAP = {
     "ja": "facebook/mms-tts-jpn",
     "zh": "facebook/mms-tts-cmn",
     "en": "facebook/mms-tts-eng",
+    "ko": "facebook/mms-tts-kor",
+    "vi": "facebook/mms-tts-vie",
+    "id": "facebook/mms-tts-ind",
+    "uk": "facebook/mms-tts-ukr",
+    "el": "facebook/mms-tts-ell",
+    "he": "facebook/mms-tts-heb",
+    "cs": "facebook/mms-tts-ces",
+    "ro": "facebook/mms-tts-ron",
+    "hu": "facebook/mms-tts-hun",
+    "da": "facebook/mms-tts-dan",
+    "no": "facebook/mms-tts-nor",
+    "fi": "facebook/mms-tts-fin",
+    "sv": "facebook/mms-tts-swe",
+    "th": "facebook/mms-tts-tha",
+    "ta": "facebook/mms-tts-tam",
+    "tel": "facebook/mms-tts-tel",
+    "ur": "facebook/mms-tts-urd",
+    "bn": "facebook/mms-tts-ben",
+    "fa": "facebook/mms-tts-pes",
+    "sw": "facebook/mms-tts-swh",
+    "ca": "facebook/mms-tts-cat",
 }
 
 
@@ -64,8 +85,8 @@ class XTTSv2Provider:
                 from TTS.tts.models.xtts import Xtts
 
                 config_path = self._model_dir / "config.json"
-                model_path = self._model_dir / "model.pth"
                 vocab_path = self._model_dir / "vocab.json"
+                model_path = self._model_dir / "model.pth"
                 speakers_path = self._model_dir / "speakers_xtts.pth"
 
                 config = XttsConfig()
@@ -93,14 +114,20 @@ class XTTSv2Provider:
         from transformers import AutoTokenizer, VitsModel
 
         model_id = MMS_LANGUAGE_MAP.get(language, f"facebook/mms-tts-{language}")
+        models_dir = get_models_directory()
+        local_dir = models_dir / model_id.replace("/", "--")
+        load_path = str(local_dir) if (local_dir / "config.json").is_file() else model_id
+
         try:
-            tokenizer = AutoTokenizer.from_pretrained(model_id)
-            model = VitsModel.from_pretrained(model_id)
+            tokenizer = AutoTokenizer.from_pretrained(load_path)
+            model = VitsModel.from_pretrained(load_path)
         except Exception:
             # Fallback to Arabic if requested model not found
-            model_id = "facebook/mms-tts-ara"
-            tokenizer = AutoTokenizer.from_pretrained(model_id)
-            model = VitsModel.from_pretrained(model_id)
+            fallback_id = "facebook/mms-tts-ara"
+            fallback_dir = models_dir / fallback_id.replace("/", "--")
+            fallback_path = str(fallback_dir) if (fallback_dir / "config.json").is_file() else fallback_id
+            tokenizer = AutoTokenizer.from_pretrained(fallback_path)
+            model = VitsModel.from_pretrained(fallback_path)
 
         if hasattr(model, "to"):
             model.to(self.device_info.selected_device)

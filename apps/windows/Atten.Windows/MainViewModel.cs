@@ -67,7 +67,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<InstalledModelItem> InstalledEngines { get; } = [];
     public ObservableCollection<HfModelInfo> HfModels { get; } = [];
     public ObservableCollection<HfModelInfo> FilteredHfModels { get; } = [];
-    public ObservableCollection<string> HfLanguages { get; } = ["All Languages", "Arabic", "English", "German", "Spanish", "French", "Italian", "Portuguese", "Russian", "Turkish", "Dutch", "Polish", "Japanese", "Chinese", "Hindi"];
+    public ObservableCollection<string> HfLanguages { get; } = [
+        "All Languages", "Arabic", "English", "German", "Spanish", "French", "Italian", "Portuguese",
+        "Russian", "Turkish", "Dutch", "Polish", "Japanese", "Chinese", "Hindi", "Korean", "Vietnamese",
+        "Indonesian", "Ukrainian", "Greek", "Hebrew", "Czech", "Romanian", "Hungarian", "Danish",
+        "Norwegian", "Finnish", "Swedish", "Thai", "Tamil", "Telugu", "Urdu", "Bengali", "Persian", "Swahili", "Catalan"
+    ];
     public ObservableCollection<string> HfSortOptions { get; } = ["Most Downloads", "Most Stars", "Smallest Size", "Largest Size", "Provider (A-Z)", "Model Name (A-Z)"];
     public ObservableCollection<string> HfFilters { get; } = ["All Models", "Installed", "Available to Download"];
     public IReadOnlyList<AudioFormat> Formats { get; } = Enum.GetValues<AudioFormat>();
@@ -113,6 +118,30 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    private CancellationTokenSource? hfSearchCts;
+
+    private void TriggerDebouncedHfSearch()
+    {
+        hfSearchCts?.Cancel();
+        hfSearchCts = new CancellationTokenSource();
+        var token = hfSearchCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(400, token);
+                if (!token.IsCancellationRequested)
+                {
+                    await FetchHfModelsAsync();
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }, token);
+    }
+
     public string HfSearchText
     {
         get => hfSearchText;
@@ -121,6 +150,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (Set(ref hfSearchText, value))
             {
                 UpdateFilteredHfModels();
+                TriggerDebouncedHfSearch();
             }
         }
     }
@@ -554,24 +584,40 @@ public sealed class MainViewModel : INotifyPropertyChanged
             id.Contains("Breeze-TTS", StringComparison.OrdinalIgnoreCase) ||
             id.Contains("AuK", StringComparison.OrdinalIgnoreCase) ||
             id.Contains("ZeroTTS", StringComparison.OrdinalIgnoreCase) ||
-            id.Contains("Kahya", StringComparison.OrdinalIgnoreCase))
+            id.Contains("Kahya", StringComparison.OrdinalIgnoreCase) ||
+            id.Contains("ChatTTS", StringComparison.OrdinalIgnoreCase) ||
+            id.Contains("FishAudio", StringComparison.OrdinalIgnoreCase) ||
+            id.Contains("fish-speech", StringComparison.OrdinalIgnoreCase) ||
+            id.Contains("F5-TTS", StringComparison.OrdinalIgnoreCase) ||
+            id.Contains("CosyVoice", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        // Supported architectures
+        // Supported architectures and model publishers
         if (id.StartsWith("facebook/mms-tts", StringComparison.OrdinalIgnoreCase) ||
             id.Contains("mms-tts", StringComparison.OrdinalIgnoreCase) ||
             id.StartsWith("hexgrad/Kokoro", StringComparison.OrdinalIgnoreCase) ||
-            id.StartsWith("coqui/XTTS", StringComparison.OrdinalIgnoreCase))
+            id.Contains("kokoro", StringComparison.OrdinalIgnoreCase) ||
+            id.StartsWith("coqui/XTTS", StringComparison.OrdinalIgnoreCase) ||
+            id.Contains("xtts", StringComparison.OrdinalIgnoreCase) ||
+            id.StartsWith("kakao-enterprise/vits", StringComparison.OrdinalIgnoreCase) ||
+            id.StartsWith("ylacombe/vits", StringComparison.OrdinalIgnoreCase) ||
+            id.StartsWith("espnet/", StringComparison.OrdinalIgnoreCase) ||
+            id.StartsWith("Matthijs/vits", StringComparison.OrdinalIgnoreCase) ||
+            id.StartsWith("rodrigo-v/vits", StringComparison.OrdinalIgnoreCase) ||
+            id.StartsWith("csukuangfj/vits", StringComparison.OrdinalIgnoreCase) ||
+            id.StartsWith("microsoft/speecht5", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
 
         return tags.Any(t => t.Equals("vits", StringComparison.OrdinalIgnoreCase) ||
                              t.Equals("mms-tts", StringComparison.OrdinalIgnoreCase) ||
+                             t.Equals("mms", StringComparison.OrdinalIgnoreCase) ||
                              t.Equals("kokoro", StringComparison.OrdinalIgnoreCase) ||
-                             t.Equals("xtts", StringComparison.OrdinalIgnoreCase));
+                             t.Equals("xtts", StringComparison.OrdinalIgnoreCase) ||
+                             t.Equals("speecht5", StringComparison.OrdinalIgnoreCase));
     }
 
     public async Task FetchHfModelsAsync()
@@ -583,20 +629,34 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             var sortParam = SelectedHfSort == "Most Stars" ? "likes" : "downloads";
             var queryUrls = new List<string>();
+            var query = (hfSearchText ?? "").Trim();
+
+            if (!string.IsNullOrWhiteSpace(query))
+            {
+                var escaped = Uri.EscapeDataString(query);
+                queryUrls.Add($"https://huggingface.co/api/models?pipeline_tag=text-to-speech&search={escaped}&sort={sortParam}&direction=-1&limit=60&expand[]=likes&expand[]=downloads&expand[]=safetensors&expand[]=gguf&expand[]=tags&expand[]=cardData");
+            }
 
             if (!string.IsNullOrWhiteSpace(SelectedHfLanguage) && SelectedHfLanguage != "All Languages")
             {
-                if (HfModelInfo.LanguageToCode.TryGetValue(SelectedHfLanguage, out var code))
+                if (HfModelInfo.LanguageToCodes.TryGetValue(SelectedHfLanguage, out var codes))
                 {
-                    queryUrls.Add($"https://huggingface.co/api/models?pipeline_tag=text-to-speech&search=mms-tts-{code}&sort={sortParam}&direction=-1&limit=25&expand[]=likes&expand[]=downloads&expand[]=safetensors&expand[]=gguf&expand[]=tags&expand[]=cardData");
-                    queryUrls.Add($"https://huggingface.co/api/models?pipeline_tag=text-to-speech&filter={code}&sort={sortParam}&direction=-1&limit=25&expand[]=likes&expand[]=downloads&expand[]=safetensors&expand[]=gguf&expand[]=tags&expand[]=cardData");
+                    foreach (var code in codes)
+                    {
+                        queryUrls.Add($"https://huggingface.co/api/models?pipeline_tag=text-to-speech&search=mms-tts-{code}&sort={sortParam}&direction=-1&limit=30&expand[]=likes&expand[]=downloads&expand[]=safetensors&expand[]=gguf&expand[]=tags&expand[]=cardData");
+                        queryUrls.Add($"https://huggingface.co/api/models?pipeline_tag=text-to-speech&filter={code}&sort={sortParam}&direction=-1&limit=30&expand[]=likes&expand[]=downloads&expand[]=safetensors&expand[]=gguf&expand[]=tags&expand[]=cardData");
+                        queryUrls.Add($"https://huggingface.co/api/models?pipeline_tag=text-to-speech&search=vits-{code}&sort={sortParam}&direction=-1&limit=20&expand[]=likes&expand[]=downloads&expand[]=safetensors&expand[]=gguf&expand[]=tags&expand[]=cardData");
+                    }
                 }
             }
-            else
+            else if (string.IsNullOrWhiteSpace(query))
             {
-                queryUrls.Add($"https://huggingface.co/api/models?pipeline_tag=text-to-speech&search=mms-tts&sort={sortParam}&direction=-1&limit=30&expand[]=likes&expand[]=downloads&expand[]=safetensors&expand[]=gguf&expand[]=tags&expand[]=cardData");
-                queryUrls.Add($"https://huggingface.co/api/models?pipeline_tag=text-to-speech&search=kokoro&sort={sortParam}&direction=-1&limit=15&expand[]=likes&expand[]=downloads&expand[]=safetensors&expand[]=gguf&expand[]=tags&expand[]=cardData");
-                queryUrls.Add($"https://huggingface.co/api/models?pipeline_tag=text-to-speech&other=vits&sort={sortParam}&direction=-1&limit=20&expand[]=likes&expand[]=downloads&expand[]=safetensors&expand[]=gguf&expand[]=tags&expand[]=cardData");
+                queryUrls.Add($"https://huggingface.co/api/models?pipeline_tag=text-to-speech&search=facebook/mms-tts&sort={sortParam}&direction=-1&limit=100&expand[]=likes&expand[]=downloads&expand[]=safetensors&expand[]=gguf&expand[]=tags&expand[]=cardData");
+                queryUrls.Add($"https://huggingface.co/api/models?pipeline_tag=text-to-speech&search=kokoro&sort={sortParam}&direction=-1&limit=40&expand[]=likes&expand[]=downloads&expand[]=safetensors&expand[]=gguf&expand[]=tags&expand[]=cardData");
+                queryUrls.Add($"https://huggingface.co/api/models?pipeline_tag=text-to-speech&search=xtts&sort={sortParam}&direction=-1&limit=40&expand[]=likes&expand[]=downloads&expand[]=safetensors&expand[]=gguf&expand[]=tags&expand[]=cardData");
+                queryUrls.Add($"https://huggingface.co/api/models?pipeline_tag=text-to-speech&other=vits&sort={sortParam}&direction=-1&limit=60&expand[]=likes&expand[]=downloads&expand[]=safetensors&expand[]=gguf&expand[]=tags&expand[]=cardData");
+                queryUrls.Add($"https://huggingface.co/api/models?pipeline_tag=text-to-speech&search=espnet&sort={sortParam}&direction=-1&limit=25&expand[]=likes&expand[]=downloads&expand[]=safetensors&expand[]=gguf&expand[]=tags&expand[]=cardData");
+                queryUrls.Add($"https://huggingface.co/api/models?pipeline_tag=text-to-speech&search=speecht5&sort={sortParam}&direction=-1&limit=25&expand[]=likes&expand[]=downloads&expand[]=safetensors&expand[]=gguf&expand[]=tags&expand[]=cardData");
             }
 
             var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -765,6 +825,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             if (fetchedList.Count > 0)
             {
+                // Retain existing installed models so they never vanish from the list
+                var existingInstalled = HfModels.Where(m => m.IsInstalled).ToList();
+                foreach (var inst in existingInstalled)
+                {
+                    if (!fetchedList.Any(f => f.Id.Equals(inst.Id, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        fetchedList.Add(inst);
+                    }
+                }
+
                 HfModels.Clear();
                 foreach (var m in fetchedList)
                 {
